@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* Data Axle brand tokens (sampled from data-axle.com) + the SportsAxle motion film. */
+@theme {
+  --color-ink: #221f20;
+  --color-brand: #00a0dc;
+  --color-brand-dark: #0077a8; /* text-safe blue: 4.9:1 on white */
+  --color-sky: #7fcdf1;
+  --color-mist: #e6f4fb;
+  --color-fog: #f3f4f5;
+  --color-steel: #3c4456;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --animate-ticker: ticker 30s linear infinite;
+  --animate-pop: pop 0.35s ease-out;
+}
+
+@keyframes ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes pop {
+  from {
+    transform: scale(0.85);
+    opacity: 0.4;
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-white text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display font-extrabold tracking-tight;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ink;
+  }
+}
+
+@layer components {
+  .btn,
+  .btn-ghost {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-full border-2 border-brand-dark bg-brand-dark px-5 py-2 font-bold text-white transition hover:border-ink hover:bg-ink disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-ghost {
+    @apply border-brand bg-transparent text-ink hover:border-brand hover:bg-mist;
+  }
+  .card {
+    @apply rounded-2xl border border-ink/10 bg-white p-4;
+  }
+  .field {
+    @apply w-full rounded-xl border border-ink/20 bg-white px-3 py-2;
+  }
+  /* The diagonal stripe motif from the motion film. */
+  .stripes {
+    background-image: repeating-linear-gradient(
+      60deg,
+      transparent 0 72px,
+      rgb(0 160 220 / 0.08) 72px 84px
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
+}
