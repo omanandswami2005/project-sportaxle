@@ -64,8 +64,257 @@
   }
 }
 
+/* ---------- Home page motion. Base styles are the END state, so with animations
+   switched off (reduced motion) everything is simply visible. ---------- */
+
+@keyframes arm-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty));
+  }
+}
+@keyframes ball-drop {
+  0% {
+    transform: translateY(-190px);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  40%,
+  70%,
+  90%,
+  100% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0.55, 0.45, 1);
+  }
+  55% {
+    transform: translateY(-27px);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  80% {
+    transform: translateY(-12px);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  95% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes ring {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(4);
+  }
+}
+@keyframes letter-in {
+  0% {
+    opacity: 0;
+    transform: translate(-0.35em, 0.45em) rotate(-10deg) scale(0.7);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(0, -0.05em) rotate(2deg) scale(1.06);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.2rem);
+  }
+}
+@keyframes confetti {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), calc(var(--y) + 120px)) rotate(var(--r));
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes counter-spin {
+  from {
+    transform: rotate(calc(-1 * var(--a)));
+  }
+  to {
+    transform: rotate(calc(-1 * var(--a) - 360deg));
+  }
+}
+@keyframes drift {
+  to {
+    background-position: -168px 0;
+  }
+}
+@keyframes glow {
+  50% {
+    box-shadow: 0 0 2.5rem 0.4rem rgb(0 160 220 / 0.55);
+  }
+}
+@keyframes shine {
+  to {
+    background-position: 2.5rem 0;
+  }
+}
+
+@layer components {
+  .logo-arm {
+    animation: arm-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .logo-ball {
+    animation: ball-drop 2.5s both;
+  }
+  .logo-ring {
+    fill: none;
+    stroke: var(--color-brand);
+    stroke-width: 2;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: ring 2.8s ease-out infinite;
+  }
+  .letter {
+    display: inline-block;
+    animation: letter-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .rise {
+    animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .confetti {
+    position: absolute;
+    width: 12px;
+    height: 6px;
+    opacity: 0;
+    animation: confetti 1.8s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+  }
+
+  .hero-stripes {
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(60deg, transparent 0 72px, rgb(0 160 220 / 0.09) 72px 84px);
+    animation: drift 6s linear infinite;
+  }
+  .hero-spot {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(28rem circle at var(--mx, 50%) var(--my, 30%), rgb(0 160 220 / 0.32), transparent 70%);
+  }
+  .live-pill {
+    @apply inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm backdrop-blur;
+  }
+  .btn-glow {
+    @apply inline-flex items-center justify-center rounded-full bg-brand px-5 py-2 font-bold text-ink transition hover:scale-105 hover:bg-white;
+    animation: glow 2.4s ease-in-out infinite;
+  }
+
+  /* Sports icons circling the logo: the ring spins, each icon counter-spins to stay upright. */
+  .orbit {
+    --radius: 8.5rem;
+    position: absolute;
+    inset: 0;
+    animation: spin 22s linear infinite;
+  }
+  .orbit > span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin: -1rem;
+    width: 2rem;
+    height: 2rem;
+    transform: rotate(var(--a)) translateX(var(--radius));
+  }
+  .orbit i {
+    display: block;
+    font-style: normal;
+    font-size: 1.5rem;
+    line-height: 2rem;
+    text-align: center;
+    animation: counter-spin 22s linear infinite;
+  }
+
+  .marquee {
+    @apply flex w-max font-display text-3xl font-extrabold whitespace-pre sm:text-5xl;
+    animation: ticker 40s linear infinite;
+  }
+  .marquee-reverse {
+    animation-direction: reverse;
+  }
+
+  .reveal {
+    opacity: 0;
+    transition:
+      opacity 0.7s ease,
+      transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .reveal-up {
+    transform: translateY(2.5rem);
+  }
+  .reveal-left {
+    transform: translateX(-4rem);
+  }
+  .reveal-right {
+    transform: translateX(4rem);
+  }
+  .reveal.is-in {
+    opacity: 1;
+    transform: none;
+  }
+
+  .tilt {
+    transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.15s ease-out;
+  }
+  .team-card {
+    @apply h-full rounded-2xl border border-ink/10 bg-white;
+    transition:
+      transform 0.15s ease-out,
+      box-shadow 0.3s ease;
+  }
+  .team-card:hover {
+    box-shadow: 0 1.5rem 3rem -1rem var(--team);
+  }
+  .team-initial {
+    @apply absolute -right-2 -bottom-10 font-display text-[9rem] leading-none font-extrabold text-white/25 transition-transform duration-500;
+  }
+  .team-card:hover .team-initial {
+    transform: scale(1.25) rotate(-8deg);
+  }
+
+  .film-frame {
+    @apply rounded-2xl;
+    box-shadow:
+      14px 14px 0 var(--color-brand),
+      28px 28px 0 var(--color-ink);
+  }
+  .race-bar {
+    @apply h-full rounded-full bg-brand;
+    background-image: repeating-linear-gradient(-60deg, rgb(255 255 255 / 0.35) 0 0.5rem, transparent 0.5rem 1.25rem);
+    transition: width 1.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation: shine 0.9s linear infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .tilt {
+    transform: none;
+  }
+  .confetti {
+    display: none;
   }
 }
