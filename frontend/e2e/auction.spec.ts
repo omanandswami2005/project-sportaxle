@@ -52,4 +52,26 @@ test("auction to leaderboard: the whole event in one pass", async ({ page }) => 
   await expect(page.getByTestId("Remaining purse")).toHaveText("₹9,500");
   await expect(page.getByTestId("Total spent")).toHaveText("₹500");
   await expect(page.getByText("Bought for ₹500")).toBeVisible();
+  await signOut(page);
+
+  // Auctioneer adds a team and a player from the admin page.
+  await signIn(page, "Auctioneer (admin)", "admin-1234");
+  await page.goto("/admin");
+  const teamForm = page.getByRole("form", { name: "Add a team" });
+  await teamForm.getByLabel("Team name").fill("Team Echo");
+  await teamForm.getByLabel("Captain", { exact: true }).fill("Esha Rane");
+  await teamForm.getByLabel(/access code/).fill("echo-1234");
+  await teamForm.getByRole("button", { name: "Add team" }).click();
+  await expect(teamForm.getByRole("status")).toContainText("Team Echo added");
+
+  const playerForm = page.getByRole("form", { name: "Add a player" });
+  await playerForm.getByLabel("Player name").fill("Zoya Mirza");
+  await playerForm.getByLabel("Department").fill("Design");
+  await playerForm.getByRole("button", { name: "Add player" }).click();
+  await expect(playerForm.getByRole("status")).toContainText("Zoya Mirza added");
+  await page.getByRole("button", { name: "Remove Zoya Mirza" }).click();
+  await expect(page.getByRole("heading", { name: "Players · 16" })).toBeVisible();
+
+  await page.goto("/");
+  await expect(page.getByTestId("team-card")).toHaveCount(5);
 });

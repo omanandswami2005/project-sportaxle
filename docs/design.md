@@ -43,17 +43,19 @@ backend/
     schemas.py     API shapes (what each caller is allowed to see)
     security.py    PIN hashing, tokens, require_admin / require_captain
     services/      business rules, no HTTP: auction.py, standings.py
-    routers/       thin HTTP layer: auth, catalog, auction, matches
+    routers/       thin HTTP layer: auth, catalog, admin, auction, matches
     seed.py        rebuild the database from JSON
     main.py        wiring, static files
   tests/           pytest, in-memory database
   seed.example.json
 frontend/
   src/
-    lib/           api.ts (fetch + usePoll), auth.tsx, format.ts, types.ts
+    lib/           api.ts (fetch + usePoll), auth.tsx, format.ts, types.ts,
+                   motion.tsx (useInView, Reveal, CountUp, Tilt)
     components/    Logo, PlayerCard (Avatar, StatusBadge)
-    pages/         Home, Auction, Players, Dashboard, Leaderboard, Login
+    pages/         Home, Auction, Players, Dashboard, Leaderboard, Admin, Login
     ui.test.tsx    Vitest
+  public/media/    the Sports Axle film (mp4)
   e2e/             Playwright smoke test
 docs/              srs.md, design.md
 SportsAxle.html    the original motion film: the visual reference
@@ -99,7 +101,21 @@ which takes the team from the signed-in token and accepts no team parameter. A c
 therefore cannot ask for another team's data. `tests/test_privacy.py` scans every public
 endpoint for private field names.
 
-### 5.4 Sign-in
+### 5.4 Photo uploads
+
+`POST /api/players` accepts an optional image. The server checks the content type against
+an allow-list (JPG, PNG, WebP), caps the size at 2 MB, and saves it under a random name in
+`backend/photos/`; the uploaded filename is never used. Photos are served at `/photos`.
+
+### 5.5 Home page motion
+
+All of it is CSS keyframes and transitions plus four small helpers in `lib/motion.tsx`
+built on `IntersectionObserver`; there is no animation library. Every animated element's
+base style is its final state, so with `prefers-reduced-motion` the page is simply static
+and fully visible. The film autoplays muted (browsers block autoplay with sound) when half
+of it is in view and pauses when it leaves.
+
+### 5.6 Sign-in
 
 Captains choose their team and enter its access code; the auctioneer enters the admin code
 from the `ADMIN_PIN` environment variable. Codes are stored as salted PBKDF2-SHA256 hashes.
@@ -118,6 +134,9 @@ All paths are under `/api`. Rule violations return `409` with a readable `detail
 | POST | `/auth/login` | anyone | `{team_id or null, pin}` → token |
 | GET | `/teams` | anyone | teams and captains |
 | GET | `/players` | anyone | all players with status and team, no prices |
+| POST | `/teams` | admin | add a team (JSON, includes purse and access code) |
+| POST | `/players` | admin | add a player (multipart form, optional `photo` file) |
+| DELETE | `/players/{id}` | admin | remove a player who is not sold or on the block |
 | GET | `/auction` | anyone | on-block player, bid, leading team, `min_bid`, last result |
 | POST | `/auction/next` | admin | put the next player on the block |
 | POST | `/auction/bid` | captain | `{amount}` |
@@ -149,6 +168,10 @@ Taken from `SportsAxle.html` (the motion film) and from colours sampled on data-
 - **Type:** Bricolage Grotesque 800 for headings and numbers, system sans for body.
 - **Motifs from the film:** faint 60° blue stripes behind hero areas, a tilted black ticker
   band of sports, pill buttons, a pulsing blue "live" dot, bar-fill leaderboard rows.
+- **Home page:** dark hero with the logo assembling as in the film (arms fly in, ball
+  drops and bounces, confetti), sports icons orbiting it, a pointer-following blue
+  spotlight, count-up stats, three counter-moving bands, the film in an offset frame,
+  3D-tilting team cards and a bar-race leaderboard preview.
 - **Layout:** white pages, one sticky nav, max width 1152 px, single column on phones.
 
 Tokens are defined once in `frontend/src/index.css` under `@theme`.
@@ -157,9 +180,9 @@ Tokens are defined once in `frontend/src/index.css` under `@theme`.
 
 | Suite | Command | Time | Covers |
 |---|---|---|---|
-| API | `make test-api` | ~2 s | Auction rules FR-2.5 to 2.10, roles, privacy FR-3.5 and 4.5, standings FR-5.2 to 5.7 |
+| API | `make test-api` | ~2 s | Auction rules FR-2.5 to 2.10, roles, privacy FR-3.5 and 4.5, standings FR-5.2 to 5.7, admin setup FR-6.5 to 6.8 |
 | UI unit | `make test-web` | <1 s | Formatting, player card states FR-2.2, 4.2, 4.3 |
-| End to end | `make e2e` | ~10 s | One pass through FR-1 to FR-5 in real Chrome |
+| End to end | `make e2e` | ~15 s | One pass through FR-1 to FR-6 in real Chrome |
 
 How they stay fast and cheap to read:
 
@@ -192,7 +215,7 @@ make web           # terminal 2, open http://localhost:5173
 
 For the real event: copy `seed.example.json` to `backend/seed.json` (git-ignored), put real
 names, purses and access codes in it, drop photos in `backend/photos/` and reference them as
-`/photos/<file>`. Then:
+`/photos/<file>`. Teams and players can also be added later on the admin page. Then:
 
 ```
 cd backend && uv run python -m app.seed seed.json

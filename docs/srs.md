@@ -1,6 +1,6 @@
 # Sports Axle — Software Requirements Specification
 
-Version 1.0 · 13 Nov 2026
+Version 1.1 · 13 Nov 2026
 
 ## 1. Introduction
 
@@ -13,9 +13,9 @@ player, and keeps the points table up to date.
 ### 1.2 Scope
 
 In scope: the five feature areas in section 3, sign-in for captains and the auctioneer, and
-loading teams and players from a file before the event.
+setting up teams and players, either from a file or on the admin page.
 
-Out of scope for v1 (see section 6): self-registration, in-app editing of teams and players,
+Out of scope for v1 (see section 6): self-registration, editing existing teams and players,
 fixtures and scheduling, per-sport scorecards, notifications, native mobile apps.
 
 ### 1.3 Roles
@@ -24,7 +24,7 @@ fixtures and scheduling, per-sport scorecards, notifications, native mobile apps
 |---|---|---|---|
 | Visitor | Any employee | No | View home, live auction, player list, points table |
 | Captain | One per team | Team + access code | Everything a visitor can, plus bid and view their own dashboard |
-| Auctioneer (admin) | Event organiser | Admin access code | Everything a visitor can, plus run the auction and record match results |
+| Auctioneer (admin) | Event organiser | Admin access code | Everything a visitor can, plus run the auction, record match results, and add teams and players |
 
 The source requirements name only captains. The auctioneer role is added because someone has
 to put players on the block, close bidding and enter results.
@@ -40,7 +40,7 @@ to put players on the block, close bidding and enter results.
 
 1. One event, one auction, 4–12 teams, up to about 200 players, under 300 concurrent viewers.
 2. The app runs on one server inside the company network.
-3. Organisers prepare team, captain, purse and player data in a JSON file before the event.
+3. Organisers load starting data from a JSON file and add late entries on the admin page.
 4. A match is between two teams and ends in a win for one side or a tie.
 5. Points: win 2, tie 1, loss 0.
 
@@ -55,6 +55,9 @@ to put players on the block, close bidding and enter results.
 | FR-1.3 | Each team shows its name and its captain's name. |
 | FR-1.4 | The site uses a professional, sports-themed design in Data Axle's brand colours (see `design.md` section 7). |
 | FR-1.5 | Each team also shows the players it has bought so far. |
+| FR-1.6 | The homepage plays the Sports Axle film. It starts muted when at least half of it scrolls into view, pauses when it leaves, and offers a one-click way to turn sound on. |
+| FR-1.7 | The homepage shows live figures (teams, players, players sold, matches played), the player currently on the block with a link to the auction, and a preview of the points table. |
+| FR-1.8 | The homepage uses animation (logo intro, scroll reveals, moving bands) and shows all content without animation for visitors who prefer reduced motion. |
 
 ### 3.2 Live player auction
 
@@ -80,7 +83,7 @@ to put players on the block, close bidding and enter results.
 | FR-3.2 | The dashboard lists the players the team has bought. |
 | FR-3.3 | Each bought player shows its purchase price. |
 | FR-3.4 | The dashboard shows total spending and remaining purse. |
-| FR-3.5 | **Privacy:** purse, spending and purchase prices are returned only to the owning captain. No other captain, the auctioneer, or a visitor can retrieve them. |
+| FR-3.5 | **Privacy:** purse, spending and purchase prices are returned only to the owning captain. No other captain, the auctioneer, or a visitor can retrieve them. The auctioneer sets a purse when adding a team but cannot read it back. |
 | FR-3.6 | A captain sees their own remaining purse on the auction page while bidding. |
 
 ### 3.4 Player list
@@ -114,6 +117,10 @@ to put players on the block, close bidding and enter results.
 | FR-6.2 | The auctioneer signs in with the admin access code. |
 | FR-6.3 | Sessions expire after 12 hours. |
 | FR-6.4 | Organisers load teams (name, captain, colour, purse, access code) and players (name, department, details, photo, base price) from a JSON file with one command. |
+| FR-6.5 | The auctioneer has an admin page, reachable only when signed in as the auctioneer. |
+| FR-6.6 | On the admin page the auctioneer adds a team: unique name, captain, colour, purse and an access code of at least 6 characters. The new captain can sign in at once. |
+| FR-6.7 | On the admin page the auctioneer adds a player: name, department, details, base price and an optional photo (JPG, PNG or WebP, up to 2 MB). The player joins the auction pool as Available. |
+| FR-6.8 | The auctioneer can remove a player who is not sold and not on the block. |
 
 ## 4. Non-functional requirements
 
@@ -134,7 +141,7 @@ serve those totals to anyone but the owning captain.
 
 ## 6. Deferred (not built)
 
-Editing teams and players in the browser, photo upload, undoing a sale, bid history, a bid
+Editing or deleting teams, editing players, undoing a sale, bid history, a bid
 timer, squad size limits, fixtures, net run rate or other tie-breakers, multiple events.
 Each is deliberately left out until someone asks for it.
 

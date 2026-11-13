@@ -12,7 +12,7 @@ make seed        # WIPES the database, loads demo data
 make api         # FastAPI on :8000
 make web         # Vite on :5173 (proxies /api)
 make test        # pytest + vitest, ~3 s — run after every change
-make e2e         # Playwright in installed Chrome, ~10 s — run before committing UI or API changes
+make e2e         # Playwright in installed Chrome, ~15 s — run before committing UI or API changes
 make lint        # ruff + tsc
 ```
 
@@ -28,7 +28,10 @@ Single test: `cd backend && uv run pytest tests/test_auction.py -k bid_rules`.
 - `backend/app/routers/` — HTTP only. No business rules here.
 - `backend/app/services/` — rules (`auction.py`, `standings.py`). No FastAPI imports here.
 - `backend/app/schemas.py` — what each caller may see.
+- `backend/app/routers/admin.py` — auctioneer-only setup (add team, add/remove player, photo upload).
 - `frontend/src/lib/api.ts` — the only place that calls `fetch`. Use `api()` and `usePoll()`.
+- `frontend/src/lib/motion.tsx` — scroll and pointer animation helpers. No animation library.
+- `frontend/public/media/` — the Sports Axle film shown on the home page.
 - `frontend/src/index.css` — brand tokens in `@theme`. Use the token classes (`bg-ink`,
   `text-brand-dark`); never hard-code hex values in components.
 - `SportsAxle.html` — original motion film; the visual reference. Do not edit.
@@ -45,6 +48,9 @@ Single test: `cd backend && uv run pytest tests/test_auction.py -k bid_rules`.
 4. **Authorise on the server** with `require_admin` / `require_captain`. Hiding a button is
    not access control.
 5. White text goes on `brand-dark` or `ink`, not on `brand` (fails contrast).
+6. **Animated elements' base style is their final state**, so the page is complete with
+   animations off. Never hide content behind an animation that reduced motion disables.
+7. **Uploads:** keep the type allow-list, size cap and random filename in `admin.py`.
 
 ## Principles
 
