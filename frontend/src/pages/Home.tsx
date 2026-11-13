@@ -6,7 +6,7 @@ import { initials, money, teamName } from "../lib/format";
 import { CountUp, Reveal, Tilt, useInView } from "../lib/motion";
 import type { AuctionState, Player, Standing, Team } from "../lib/types";
 
-const FILM = "/media/SportsAxle_by_DataAxle.mp4";
+const FILM = `${import.meta.env.BASE_URL}media/SportsAxle_by_DataAxle.mp4`;
 const ORBIT = ["🏏", "🏸", "♟️", "🏓", "🎯"];
 const BANDS = [
   { text: "CRICKET · CARROM · TABLE TENNIS · CHESS · BADMINTON · ", className: "bg-brand text-ink" },

@@ -31,7 +31,7 @@ export async function api<T>(path: string, method = "GET", body?: unknown): Prom
   });
   if (res.status === 401 && session) {
     saveSession(null); // expired token
-    location.assign("/login");
+    location.assign(`${import.meta.env.BASE_URL}login`);
   }
   if (!res.ok) {
     const detail = (await res.json().catch(() => null))?.detail;
