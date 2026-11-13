@@ -1,17 +1,14 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from .config import DIST_DIR as DIST
+from .config import PHOTOS_DIR as PHOTOS
 from .db import init_db
-from .routers import auction, auth, catalog, matches
+from .routers import admin, auction, auth, catalog, matches
 from .services.auction import AuctionError
-
-ROOT = Path(__file__).resolve().parents[2]
-PHOTOS = ROOT / "backend" / "photos"
-DIST = ROOT / "frontend" / "dist"
 
 
 @asynccontextmanager
@@ -22,7 +19,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Sports Axle API", lifespan=lifespan)
 
-for module in (auth, catalog, auction, matches):
+for module in (auth, catalog, admin, auction, matches):
     app.include_router(module.router, prefix="/api")
 
 

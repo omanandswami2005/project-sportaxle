@@ -58,6 +58,14 @@ class LoginOut(BaseModel):
     team_id: int | None
 
 
+class TeamIn(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    captain: str = Field(min_length=1, max_length=80)
+    color: str = Field("#00A0DC", pattern=r"^#[0-9a-fA-F]{6}$")
+    purse: int = Field(gt=0)
+    pin: str = Field(min_length=6, max_length=64)
+
+
 class BidIn(BaseModel):
     amount: int = Field(gt=0)
 

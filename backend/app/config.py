@@ -2,6 +2,11 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+PHOTOS_DIR = ROOT / "backend" / "photos"  # uploaded player photos, served at /photos
+DIST_DIR = ROOT / "frontend" / "dist"  # built React app
 
 
 @dataclass(frozen=True)

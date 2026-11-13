@@ -102,3 +102,20 @@ def close(session: Session) -> Auction:
         session.add(state)
         session.commit()
         return state
+
+
+def remove_player(session: Session, player_id: int) -> str | None:
+    """Delete a player who has not been bought. Returns their photo URL, if any."""
+    with _lock:
+        player = session.get(Player, player_id)
+        if player is None:
+            raise AuctionError("Player not found")
+        state = get_state(session)
+        if player.status == PlayerStatus.sold or state.player_id == player.id:
+            raise AuctionError("A sold or on-the-block player cannot be removed")
+        if state.last_player_id == player.id:
+            state.last_player_id = None
+            session.add(state)
+        session.delete(player)
+        session.commit()
+        return player.photo_url
