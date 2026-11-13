@@ -1,0 +1,26 @@
+{
+  "teams": [
+    {"name": "Team Alpha", "captain": "Aarav Kulkarni", "color": "#00A0DC", "purse": 10000, "pin": "alpha-1234"},
+    {"name": "Team Bravo", "captain": "Meera Joshi", "color": "#221F20", "purse": 10000, "pin": "bravo-1234"},
+    {"name": "Team Cobra", "captain": "Rohan Deshmukh", "color": "#7FCDF1", "purse": 10000, "pin": "cobra-1234"},
+    {"name": "Team Delta", "captain": "Sneha Patil", "color": "#9AA5AB", "purse": 10000, "pin": "delta-1234"}
+  ],
+  "players": [
+    {"name": "Kabir Shah", "department": "Engineering", "details": "All-rounder · Cricket, Badminton", "base_price": 500},
+    {"name": "Ananya Rao", "department": "Data Science", "details": "Smasher · Badminton, Table Tennis", "base_price": 500},
+    {"name": "Vikram Nair", "department": "DevOps", "details": "Fast bowler · Cricket", "base_price": 400},
+    {"name": "Priya Menon", "department": "Product", "details": "Strategist · Chess, Carrom", "base_price": 300},
+    {"name": "Arjun Bhosale", "department": "QA", "details": "Opening batter · Cricket", "base_price": 400},
+    {"name": "Isha Gokhale", "department": "Engineering", "details": "Spinner · Table Tennis", "base_price": 300},
+    {"name": "Dev Malhotra", "department": "Sales", "details": "Wicket-keeper · Cricket", "base_price": 300},
+    {"name": "Tanvi Sawant", "department": "HR", "details": "Queen hunter · Carrom", "base_price": 200},
+    {"name": "Nikhil Pawar", "department": "Data Operations", "details": "Doubles specialist · Badminton", "base_price": 300},
+    {"name": "Ritika Jain", "department": "Finance", "details": "Endgame expert · Chess", "base_price": 200},
+    {"name": "Sameer Khan", "department": "Engineering", "details": "Power hitter · Cricket", "base_price": 400},
+    {"name": "Pooja Iyer", "department": "Marketing", "details": "Defender · Table Tennis, Badminton", "base_price": 200},
+    {"name": "Yash Chavan", "department": "Support", "details": "Swing bowler · Cricket, Carrom", "base_price": 300},
+    {"name": "Neha Kale", "department": "Data Science", "details": "Blitz player · Chess", "base_price": 200},
+    {"name": "Omkar Jadhav", "department": "Engineering", "details": "Utility player · Cricket, Table Tennis", "base_price": 300},
+    {"name": "Shruti Phadke", "department": "Product", "details": "Net player · Badminton", "base_price": 200}
+  ]
+}
