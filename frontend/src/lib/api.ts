@@ -16,16 +16,18 @@ export function saveSession(session: Session | null) {
   else localStorage.removeItem(KEY);
 }
 
-/** The one place that talks to the backend. Throws Error(message) on failure. */
+/** The one place that talks to the backend. Throws Error(message) on failure.
+ *  `body` is sent as JSON, or as multipart when it is a FormData. */
 export async function api<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   const session = loadSession();
+  const isForm = body instanceof FormData; // file uploads
   const res = await fetch(`/api${path}`, {
     method,
     headers: {
-      ...(body !== undefined && { "Content-Type": "application/json" }),
+      ...(body !== undefined && !isForm && { "Content-Type": "application/json" }),
       ...(session && { Authorization: `Bearer ${session.token}` }),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   });
   if (res.status === 401 && session) {
     saveSession(null); // expired token

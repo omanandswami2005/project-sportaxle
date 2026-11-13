@@ -1,6 +1,7 @@
 import { Link, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { Logo, Wordmark } from "./components/Logo";
 import { useAuth } from "./lib/auth";
+import Admin from "./pages/Admin";
 import Auction from "./pages/Auction";
 import Dashboard from "./pages/Dashboard";
 import Home from "./pages/Home";
@@ -39,6 +40,11 @@ export default function App() {
               My team
             </NavLink>
           )}
+          {session?.role === "admin" && (
+            <NavLink to="/admin" className={navClass}>
+              Admin
+            </NavLink>
+          )}
           {session ? (
             <button
               className="btn-ghost py-1.5"
@@ -64,6 +70,7 @@ export default function App() {
             <Route key={to} path={to} element={element} />
           ))}
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/login" element={<Login />} />
           <Route path="*" element={<Home />} />
         </Routes>
