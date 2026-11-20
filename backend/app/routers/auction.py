@@ -3,7 +3,7 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..models import Auction, Player
-from ..schemas import AuctionOut, BidIn, NextIn
+from ..schemas import AuctionOut, BidIn, NextIn, SquadLimitIn
 from ..security import Principal, require_admin, require_captain
 from ..services import auction
 
@@ -18,13 +18,16 @@ def _view(session: Session, state: Auction) -> AuctionOut:
         bid=state.bid,
         team_id=state.team_id,
         min_bid=auction.min_bid(state, player) if player else None,
+        seconds_left=auction.seconds_left(state) if player else None,
+        paused=state.paused_left is not None,
+        squad_limit=auction.squad_limit(session),
         last=last,
     )
 
 
 @router.get("", response_model=AuctionOut)
 def get_auction(session: Session = Depends(get_session)):
-    return _view(session, auction.get_state(session))
+    return _view(session, auction.settle_if_expired(session))
 
 
 @router.post("/next", response_model=AuctionOut, dependencies=[Depends(require_admin)])
@@ -37,6 +40,12 @@ def close(session: Session = Depends(get_session)):
     return _view(session, auction.close(session))
 
 
+@router.put("/squad-limit", response_model=AuctionOut, dependencies=[Depends(require_admin)])
+def set_squad_limit(body: SquadLimitIn, session: Session = Depends(get_session)):
+    auction.set_squad_limit(session, body.limit)
+    return _view(session, auction.get_state(session, lock=False))
+
+
 @router.post("/bid", response_model=AuctionOut)
 def bid(
     body: BidIn,
@@ -44,3 +53,18 @@ def bid(
     session: Session = Depends(get_session),
 ):
     return _view(session, auction.place_bid(session, principal.team_id, body.amount))
+
+
+@router.post("/pause", response_model=AuctionOut, dependencies=[Depends(require_admin)])
+def pause(session: Session = Depends(get_session)):
+    return _view(session, auction.pause(session))
+
+
+@router.post("/resume", response_model=AuctionOut, dependencies=[Depends(require_admin)])
+def resume(session: Session = Depends(get_session)):
+    return _view(session, auction.resume(session))
+
+
+@router.post("/undo", response_model=AuctionOut, dependencies=[Depends(require_admin)])
+def undo(session: Session = Depends(get_session)):
+    return _view(session, auction.undo_last(session))

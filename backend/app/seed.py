@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 
-from sqlmodel import Session, SQLModel
+from sqlmodel import Session, SQLModel, select
 
 from .db import engine
 from .models import Player, Team
@@ -25,6 +25,14 @@ def seed(session: Session, data: dict) -> None:
     for player in data["players"]:
         session.add(Player(**player))
     session.commit()
+
+
+def seed_if_empty(session: Session, path: Path) -> bool:
+    """Load `path` only when there are no teams yet, so a restart never touches live data."""
+    if session.exec(select(Team)).first() is not None:
+        return False
+    seed(session, json.loads(path.read_text()))
+    return True
 
 
 def main() -> None:
