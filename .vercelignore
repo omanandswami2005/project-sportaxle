@@ -1,0 +1,13 @@
+# Raw event data and local-only files never go to the host
+*.zip
+*.xlsx
+*.csv
+*.db
+.env*
+backend/seed.json
+backend/photos
+backend/.venv
+node_modules
+frontend/node_modules
+vercel.json.bak
+docs
