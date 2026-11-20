@@ -102,3 +102,7 @@ def test_vercel_serves_the_same_security_headers_as_the_api():
     config = json.loads((Path(__file__).parents[2] / "vercel.json").read_text())
     sent = {h["key"]: h["value"] for rule in config["headers"] for h in rule["headers"]}
     assert sent == HEADERS
+
+
+def test_the_dev_defaults_are_fixed_values_not_whatever_the_environment_holds():
+    assert DEV_SECRET == "dev-only-secret-change-me-in-prod" and DEV_PIN == "admin-1234"
