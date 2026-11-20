@@ -1,10 +1,13 @@
 import { useEffect, useState, type CSSProperties, type MouseEvent } from "react";
 import { Link } from "react-router-dom";
+import { Confetti } from "../components/Confetti";
 import { Logo } from "../components/Logo";
+import { Avatar } from "../components/PlayerCard";
 import { usePoll } from "../lib/api";
-import { initials, money, teamName } from "../lib/format";
+import { useAuth } from "../lib/auth";
+import { fixtureDay, fixtureTime, initials, money, teamName } from "../lib/format";
 import { CountUp, Reveal, Tilt, useInView } from "../lib/motion";
-import type { AuctionState, Player, Standing, Team } from "../lib/types";
+import type { AuctionState, Fixture, Player, Standing, Team } from "../lib/types";
 
 const FILM = `${import.meta.env.BASE_URL}media/SportsAxle_by_DataAxle.mp4`;
 const ORBIT = ["🏏", "🏸", "♟️", "🏓", "🎯"];
@@ -18,17 +21,6 @@ const PITCH = [
   ["Track ", "every match."],
   ["Celebrate ", "every win."],
 ];
-const CONFETTI = Array.from({ length: 36 }, (_, i) => {
-  const angle = (i / 36) * Math.PI * 2;
-  const reach = 130 + ((i * 53) % 110);
-  return {
-    "--x": `${Math.round(Math.cos(angle) * reach)}px`,
-    "--y": `${Math.round(Math.sin(angle) * reach * 0.8)}px`,
-    "--r": `${(i * 137) % 720}deg`,
-    background: ["#00a0dc", "#ffffff", "#7fcdf1"][i % 3],
-    animationDelay: `${1 + (i % 5) * 0.02}s`,
-  } as CSSProperties;
-});
 
 /** Letters drop in one by one, like the film's title card. */
 function Letters({ text, start, className = "" }: { text: string; start: number; className?: string }) {
@@ -75,11 +67,7 @@ function Hero({ auction, teams }: { auction?: AuctionState; teams?: Team[] }) {
             ))}
           </div>
           <Logo light animated className="h-full w-full" />
-          <div className="absolute top-1/2 left-1/2" aria-hidden="true">
-            {CONFETTI.map((style, i) => (
-              <b key={i} className="confetti" style={style} />
-            ))}
-          </div>
+          <Confetti delay={1} />
         </div>
 
         <h1 className="text-6xl leading-none sm:text-8xl lg:text-9xl" aria-label="SportsAxle">
@@ -119,6 +107,80 @@ function Stats({ items }: { items: [string, number][] }) {
         </Reveal>
       ))}
     </div>
+  );
+}
+
+const SCHEDULE = [
+  { date: "12 Dec 2026", sport: "Football", icon: "⚽" },
+  { date: "13 Dec 2026", sport: "Pickleball", icon: "🏓" },
+  { date: "14–18 Dec 2026", sport: "Indoor sports", icon: "🏟️" },
+  { date: "19 Dec 2026", sport: "Badminton", icon: "🏸" },
+  { date: "20 Dec 2026", sport: "Cricket", icon: "🏏" },
+];
+
+const AUCTION_RULES = [
+  {
+    title: "Budget allocation",
+    body: "Each captain is given a fixed budget to purchase players for their respective team.",
+  },
+  {
+    title: "Player selection",
+    body: "Captains must select players within the allocated budget. If a captain exhausts the entire budget while purchasing 5 players, the remaining players are assigned randomly.",
+  },
+  {
+    title: "Bidding time",
+    body: "Each player has a maximum bidding time of 30 seconds. Captains must complete their bids within this time.",
+  },
+  {
+    title: "Team name submission",
+    body: "All captains must submit their team names in advance, before the auction begins.",
+  },
+];
+
+function EventSchedule() {
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-20">
+      <Reveal>
+        <p className="text-sm font-bold tracking-widest text-brand-dark uppercase">Event calendar</p>
+        <h2 className="text-4xl sm:text-5xl">Match days</h2>
+      </Reveal>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {SCHEDULE.map((item, i) => (
+          <Reveal key={item.sport} delay={i * 80}>
+            <article className="card flex flex-col items-center gap-2 text-center">
+              <span className="text-4xl" aria-hidden="true">
+                {item.icon}
+              </span>
+              <p className="text-xs font-bold tracking-widest text-brand-dark uppercase">{item.date}</p>
+              <h3 className="text-xl">{item.sport}</h3>
+            </article>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AuctionRules() {
+  return (
+    <section className="bg-mist px-4 py-20">
+      <div className="mx-auto max-w-6xl">
+        <Reveal>
+          <p className="text-sm font-bold tracking-widest text-brand-dark uppercase">Auction rules</p>
+          <h2 className="text-4xl sm:text-5xl">How the auction works</h2>
+        </Reveal>
+        <div className="mt-8 grid gap-5 sm:grid-cols-2">
+          {AUCTION_RULES.map((rule, i) => (
+            <Reveal key={rule.title} delay={i * 100}>
+              <article className="card h-full">
+                <h3 className="text-2xl text-brand-dark">{rule.title}</h3>
+                <p className="mt-2 text-steel">{rule.body}</p>
+              </article>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -175,6 +237,24 @@ function Film() {
   );
 }
 
+/** On each team card: sign in as that captain, or "My team" for the signed-in captain. */
+function CardAction({ team }: { team: Team }) {
+  const { session } = useAuth();
+  if (session?.role === "captain" && session.team_id === team.id) {
+    return (
+      <Link to="/dashboard" className="card-action btn">
+        My team →
+      </Link>
+    );
+  }
+  if (session) return null;
+  return (
+    <Link to={`/login?team=${team.id}`} className="card-action btn" aria-label={`Captain sign in for ${team.name}`}>
+      Captain sign in →
+    </Link>
+  );
+}
+
 function Teams({ teams, players }: { teams?: Team[]; players?: Player[] }) {
   return (
     <section className="mx-auto max-w-6xl px-4 py-20">
@@ -192,11 +272,17 @@ function Teams({ teams, players }: { teams?: Team[]; players?: Player[] }) {
                   <span className="team-initial" aria-hidden="true">
                     {initials(team.name.replace(/^team\s+/i, "")).charAt(0)}
                   </span>
+                  <CardAction team={team} />
                 </div>
                 <div className="p-5">
                   <h3 className="text-2xl">{team.name}</h3>
-                  <p className="mt-2 text-xs font-bold tracking-widest text-steel uppercase">Captain</p>
-                  <p className="text-lg font-bold">{team.captain}</p>
+                  <div className="mt-3 flex items-center gap-3">
+                    <Avatar name={team.captain} src={team.captain_photo_url} className="h-14 w-14 text-lg" />
+                    <div>
+                      <p className="text-xs font-bold tracking-widest text-steel uppercase">Captain</p>
+                      <p className="text-lg font-bold">{team.captain}</p>
+                    </div>
+                  </div>
                   <p className="mt-4 text-xs font-bold tracking-widest text-steel uppercase">
                     Squad · {squad.length} {squad.length === 1 ? "player" : "players"}
                   </p>
@@ -214,6 +300,35 @@ function Teams({ teams, players }: { teams?: Team[]; players?: Player[] }) {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function UpNext({ fixtures, teams }: { fixtures: Fixture[]; teams?: Team[] }) {
+  return (
+    <section className="mx-auto max-w-6xl px-4 pb-20">
+      <Reveal>
+        <p className="text-sm font-bold tracking-widest text-brand-dark uppercase">Up next</p>
+        <h2 className="text-4xl sm:text-5xl">Next matches</h2>
+      </Reveal>
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        {fixtures.slice(0, 3).map((fixture, i) => (
+          <Reveal key={fixture.id} delay={i * 100}>
+            <article className="card" data-testid="up-next">
+              <p className="text-sm font-bold tracking-widest text-brand-dark uppercase">
+                {fixture.sport} · {fixtureDay(fixture.starts_at)}, {fixtureTime(fixture.starts_at)}
+              </p>
+              <p className="mt-2 font-display text-2xl font-extrabold">
+                {teamName(teams, fixture.team_a_id)} <span className="text-steel">vs</span> {teamName(teams, fixture.team_b_id)}
+              </p>
+              {fixture.venue && <p className="text-steel">{fixture.venue}</p>}
+            </article>
+          </Reveal>
+        ))}
+      </div>
+      <Link to="/schedule" className="btn mt-8">
+        Full schedule →
+      </Link>
     </section>
   );
 }
@@ -257,6 +372,7 @@ export default function Home() {
   const { data: players } = usePoll<Player[]>("/players", 10_000);
   const { data: auction } = usePoll<AuctionState>("/auction", 3000);
   const { data: table } = usePoll<Standing[]>("/standings", 10_000);
+  const { data: fixtures } = usePoll<Fixture[]>("/fixtures", 30_000);
 
   const sold = players?.filter((player) => player.status === "sold").length ?? 0;
   const matches = (table?.reduce((sum, row) => sum + row.played, 0) ?? 0) / 2;
@@ -284,8 +400,11 @@ export default function Home() {
         ))}
       </div>
 
+      <EventSchedule />
+      <AuctionRules />
       <Film />
       <Teams teams={teams} players={players} />
+      {fixtures && fixtures.length > 0 && <UpNext fixtures={fixtures} teams={teams} />}
       {table && <Race table={table} />}
 
       <section className="relative overflow-hidden bg-brand px-4 py-16 text-center text-ink">

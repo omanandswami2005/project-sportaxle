@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { api, usePoll } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { teamName } from "../lib/format";
+import { sportsOf, teamName } from "../lib/format";
 import type { Match, Standing, Team } from "../lib/types";
 
 const COLUMNS = ["#", "Team", "P", "W", "L", "T", "Pts"];
 
-function ResultForm({ teams, onSaved }: { teams: Team[]; onSaved: () => void }) {
+function ResultForm({ teams, sports, onSaved }: { teams: Team[]; sports: string[]; onSaved: () => void }) {
   const [error, setError] = useState<string>();
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -42,7 +42,12 @@ function ResultForm({ teams, onSaved }: { teams: Team[]; onSaved: () => void }) 
     <form onSubmit={submit} className="card mt-8 grid gap-3 sm:grid-cols-5 sm:items-end">
       <label className="text-sm font-bold">
         Sport
-        <input name="sport" required maxLength={40} placeholder="Cricket" className="field mt-1 font-normal" />
+        <input name="sport" required maxLength={40} list="known-sports" placeholder="Cricket" className="field mt-1 font-normal" />
+        <datalist id="known-sports">
+          {sports.map((sport) => (
+            <option key={sport} value={sport} />
+          ))}
+        </datalist>
       </label>
       {teamSelect("a", "Team A", 0)}
       {teamSelect("b", "Team B", 1)}
@@ -62,8 +67,12 @@ function ResultForm({ teams, onSaved }: { teams: Team[]; onSaved: () => void }) 
 
 export default function Leaderboard() {
   const isAdmin = useAuth().session?.role === "admin";
-  const { data: table, refresh: refreshTable } = usePoll<Standing[]>("/standings");
+  const [sport, setSport] = useState(""); // "" = overall table
+  const query = sport ? `?sport=${encodeURIComponent(sport)}` : "";
+  const { data: table, refresh: refreshTable } = usePoll<Standing[]>(`/standings${query}`);
   const { data: matches, refresh: refreshMatches } = usePoll<Match[]>("/matches");
+  const sports = sportsOf(matches);
+  const shown = matches?.filter((m) => !sport || m.sport.trim().toLowerCase() === sport.toLowerCase());
   const { data: teams } = usePoll<Team[]>("/teams", 60_000);
 
   const refresh = () => {
@@ -78,7 +87,22 @@ export default function Leaderboard() {
       <p className="flex items-center gap-2 font-bold uppercase">
         <span className="h-3 w-3 animate-pulse rounded-full bg-brand" /> Live leaderboard
       </p>
-      <h1 className="text-4xl">Points table</h1>
+      <h1 className="text-4xl">Points table{sport && ` · ${sport}`}</h1>
+
+      {sports.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Table for">
+          {["", ...sports].map((name) => (
+            <button
+              key={name || "overall"}
+              aria-pressed={sport === name}
+              className={sport === name ? "btn py-1.5" : "btn-ghost py-1.5"}
+              onClick={() => setSport(name)}
+            >
+              {name || "Overall"}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="card mt-6 overflow-x-auto p-0">
         <table className="w-full text-left">
@@ -117,12 +141,12 @@ export default function Leaderboard() {
       </div>
       <p className="mt-2 text-sm text-steel">Win 2 points · Tie 1 point · Ranked by points, then wins.</p>
 
-      {isAdmin && teams && <ResultForm teams={teams} onSaved={refresh} />}
+      {isAdmin && teams && <ResultForm teams={teams} sports={sports} onSaved={refresh} />}
 
       <h2 className="mt-10 text-2xl">Results</h2>
-      {matches?.length === 0 && <p className="mt-2 text-steel">No matches played yet.</p>}
+      {shown?.length === 0 && <p className="mt-2 text-steel">No matches played yet.</p>}
       <ul className="mt-3 space-y-2">
-        {matches?.map((match) => (
+        {shown?.map((match) => (
           <li key={match.id} className="card flex flex-wrap items-center justify-between gap-2 py-3">
             <span>
               <b className="text-brand-dark">{match.sport}</b> · {teamName(teams, match.team_a_id)} vs{" "}

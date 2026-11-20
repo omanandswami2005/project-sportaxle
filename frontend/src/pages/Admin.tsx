@@ -1,9 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Navigate } from "react-router-dom";
-import { PlayerCard } from "../components/PlayerCard";
+import { Link, Navigate } from "react-router-dom";
+import { Avatar, PlayerCard } from "../components/PlayerCard";
 import { api, usePoll } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { Player, Team } from "../lib/types";
+import type { AuctionState, Player, Team } from "../lib/types";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -48,6 +48,123 @@ function AdminForm(props: {
   );
 }
 
+/** Sends only the fields the admin filled in: blank means "leave as it is". */
+export function filledFields(data: FormData) {
+  for (const [key, value] of [...data.entries()]) {
+    if (value === "" || (value instanceof File && value.size === 0)) data.delete(key);
+  }
+  return data;
+}
+
+/** A collapsed "Edit" panel that PATCHes one team or player. */
+function EditPanel(props: { label: string; path: string; onSaved: () => void; children: ReactNode }) {
+  const [note, setNote] = useState<{ ok: boolean; text: string }>();
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    try {
+      await api(props.path, "PATCH", filledFields(new FormData(form)));
+      // One-off fields (new code, purse, photo) are cleared so they are not sent again.
+      form.querySelectorAll<HTMLInputElement>("[data-once]").forEach((input) => (input.value = ""));
+      setNote({ ok: true, text: "Saved." });
+      props.onSaved();
+    } catch (err) {
+      setNote({ ok: false, text: (err as Error).message });
+    }
+  };
+
+  return (
+    <details className="mt-2">
+      <summary className="cursor-pointer font-bold text-brand-dark">{props.label}</summary>
+      <form onSubmit={submit} className="mt-2 space-y-2" aria-label={props.label}>
+        {props.children}
+        <button className="btn py-1.5">Save changes</button>
+        {note && (
+          <p role={note.ok ? "status" : "alert"} className={`font-bold ${note.ok ? "text-brand-dark" : ""}`}>
+            {note.text}
+          </p>
+        )}
+      </form>
+    </details>
+  );
+}
+
+const PHOTO_TYPES = "image/jpeg,image/png,image/webp";
+
+function EditTeam({ team, onSaved }: { team: Team; onSaved: () => void }) {
+  return (
+    <EditPanel label={`Edit ${team.name}`} path={`/teams/${team.id}`} onSaved={onSaved}>
+      <Field label="Team name">
+        <input name="name" defaultValue={team.name} maxLength={60} className="field" />
+      </Field>
+      <Field label="Captain">
+        <input name="captain" defaultValue={team.captain} maxLength={80} className="field" />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Team colour">
+          <input name="color" type="color" defaultValue={team.color.toLowerCase()} className="field h-[42px] p-1" />
+        </Field>
+        <Field label="New purse (₹)">
+          <input name="purse" type="number" min={1} placeholder="unchanged" className="field" data-once />
+        </Field>
+      </div>
+      <Field label="New access code (6+ characters)">
+        <input name="pin" minLength={6} maxLength={64} autoComplete="off" placeholder="leave blank to keep" className="field" data-once />
+      </Field>
+      <Field label="Captain photo (max 2 MB)">
+        <input name="captain_photo" type="file" accept={PHOTO_TYPES} className="field text-sm" data-once />
+      </Field>
+    </EditPanel>
+  );
+}
+
+function EditPlayer({ player, onSaved }: { player: Player; onSaved: () => void }) {
+  return (
+    <EditPanel label={`Edit ${player.name}`} path={`/players/${player.id}`} onSaved={onSaved}>
+      <Field label="Player name">
+        <input name="name" defaultValue={player.name} maxLength={80} className="field" />
+      </Field>
+      <Field label="Department">
+        <input name="department" defaultValue={player.department} maxLength={80} className="field" />
+      </Field>
+      <Field label="Sports (comma separated)">
+        <input name="sports" defaultValue={player.sports} maxLength={120} className="field" />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Base price (₹)">
+          <input name="base_price" type="number" min={1} defaultValue={player.base_price} className="field" />
+        </Field>
+        <Field label="New photo">
+          <input name="photo" type="file" accept={PHOTO_TYPES} className="field text-sm" data-once />
+        </Field>
+      </div>
+    </EditPanel>
+  );
+}
+
+/** The most players a team may buy. Blank means no limit; it can be changed at any time. */
+function SquadLimit() {
+  const { data: state, refresh } = usePoll<AuctionState>("/auction", 5000);
+  const send = async (data: FormData) => {
+    const raw = String(data.get("limit") ?? "").trim();
+    const next = await api<AuctionState>("/auction/squad-limit", "PUT", { limit: raw ? Number(raw) : null });
+    refresh();
+    return next.squad_limit === null ? "No squad limit." : `Squad limit is now ${next.squad_limit} players.`;
+  };
+  return (
+    <AdminForm title="Squad size limit" submitLabel="Save limit" send={send}>
+      <p className="text-sm text-steel">
+        Now: <b className="text-ink">{state ? (state.squad_limit ?? "no limit") : "…"}</b>. Players a team may buy, not
+        counting the captain. It can be raised or lowered during the auction, but not below a squad that already exists.
+      </p>
+      <Field label="Most players per team (blank = no limit)">
+        <input name="limit" type="number" min={1} max={100} className="field" />
+      </Field>
+    </AdminForm>
+  );
+}
+
 export default function Admin() {
   const isAdmin = useAuth().session?.role === "admin";
   const { data: teams, refresh: refreshTeams } = usePoll<Team[]>(isAdmin ? "/teams" : null);
@@ -78,8 +195,15 @@ export default function Admin() {
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-10">
-      <p className="text-sm font-bold tracking-widest text-brand-dark uppercase">Auctioneer</p>
-      <h1 className="text-4xl">Event setup</h1>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="mr-auto">
+          <p className="text-sm font-bold tracking-widest text-brand-dark uppercase">Auctioneer</p>
+          <h1 className="text-4xl">Event setup</h1>
+        </div>
+        <Link to="/auction" className="btn-ghost">Run the auction</Link>
+        <Link to="/schedule" className="btn-ghost">Schedule matches</Link>
+        <Link to="/squads" className="btn">Final squads sheet</Link>
+      </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <AdminForm title="Add a team" submitLabel="Add team" send={addTeam}>
@@ -109,26 +233,37 @@ export default function Admin() {
           <Field label="Department">
             <input name="department" required maxLength={80} className="field" />
           </Field>
-          <Field label="Details (role, sports)">
-            <input name="details" maxLength={120} placeholder="All-rounder · Cricket" className="field" />
+          <Field label="Sports (comma separated)">
+            <input name="sports" maxLength={120} placeholder="Cricket, Chess" className="field" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Base price (₹)">
               <input name="base_price" type="number" required min={1} defaultValue={200} className="field" />
             </Field>
             <Field label="Photo (optional, max 2 MB)">
-              <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" className="field text-sm" />
+              <input name="photo" type="file" accept={PHOTO_TYPES} className="field text-sm" />
             </Field>
           </div>
         </AdminForm>
+
+        <SquadLimit />
       </div>
 
       <h2 className="mt-10 text-2xl">Teams · {teams?.length ?? 0}</h2>
-      <ul className="mt-3 flex flex-wrap gap-2">
+      <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {teams?.map((team) => (
-          <li key={team.id} className="flex items-center gap-2 rounded-full border border-ink/10 py-1 pr-4 pl-1">
-            <span className="h-7 w-7 rounded-full" style={{ background: team.color }} />
-            <b>{team.name}</b> <span className="text-steel">{team.captain}</span>
+          <li key={team.id} className="card">
+            <div className="flex items-center gap-3">
+              <Avatar name={team.captain} src={team.captain_photo_url} className="h-12 w-12 text-base" />
+              <div className="min-w-0">
+                <b className="flex items-center gap-2">
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: team.color }} />
+                  {team.name}
+                </b>
+                <span className="text-sm text-steel">{team.captain}</span>
+              </div>
+            </div>
+            <EditTeam team={team} onSaved={refreshTeams} />
           </li>
         ))}
       </ul>
@@ -141,11 +276,14 @@ export default function Admin() {
             key={player.id}
             player={player}
             footer={
-              player.status !== "sold" && (
-                <button className="font-bold underline" onClick={() => removePlayer(player)}>
-                  Remove {player.name}
-                </button>
-              )
+              <>
+                {player.status !== "sold" && (
+                  <button className="font-bold underline" onClick={() => removePlayer(player)}>
+                    Remove {player.name}
+                  </button>
+                )}
+                <EditPlayer player={player} onSaved={refreshPlayers} />
+              </>
             }
           />
         ))}

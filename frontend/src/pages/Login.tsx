@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Logo } from "../components/Logo";
 import { usePoll } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -9,7 +9,8 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const { data: teams } = usePoll<Team[]>("/teams", 60_000);
-  const [who, setWho] = useState("");
+  const [params] = useSearchParams();
+  const [who, setWho] = useState(params.get("team") ?? ""); // preselected from a team card
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string>();
 
@@ -47,6 +48,7 @@ export default function Login() {
           <input
             className="field mt-1 font-normal"
             type="password"
+            autoFocus={!!params.get("team")}
             required
             autoComplete="current-password"
             value={pin}

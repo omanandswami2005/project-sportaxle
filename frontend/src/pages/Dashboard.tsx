@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { PlayerCard } from "../components/PlayerCard";
+import { Avatar, PlayerCard } from "../components/PlayerCard";
 import { usePoll } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { money } from "../lib/format";
@@ -26,9 +26,14 @@ export default function Dashboard() {
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-10">
-      <p className="text-sm font-bold tracking-widest text-brand-dark uppercase">Captain · private</p>
-      <h1 className="text-4xl">{data.team.name}</h1>
-      <p className="text-steel">{data.team.captain}</p>
+      <div className="flex items-center gap-4">
+        <Avatar name={data.team.captain} src={data.team.captain_photo_url} className="h-20 w-20 text-2xl" />
+        <div>
+          <p className="text-sm font-bold tracking-widest text-brand-dark uppercase">Captain · private</p>
+          <h1 className="text-4xl">{data.team.name}</h1>
+          <p className="text-steel">{data.team.captain}</p>
+        </div>
+      </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Stat label="Remaining purse" value={money(data.remaining)} strong />
