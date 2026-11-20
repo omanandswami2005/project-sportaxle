@@ -29,7 +29,7 @@ export async function api<T>(path: string, method = "GET", body?: unknown): Prom
     },
     body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
   });
-  if (res.status === 401 && session) {
+  if (res.status === 401 && session && path !== "/auth/login") {
     saveSession(null); // expired token
     location.assign(`${import.meta.env.BASE_URL}login`);
   }

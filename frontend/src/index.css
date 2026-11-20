@@ -284,6 +284,17 @@
   .team-initial {
     @apply absolute -right-2 -bottom-10 font-display text-[9rem] leading-none font-extrabold text-white/25 transition-transform duration-500;
   }
+  /* Sign-in button on a team card: shown on hover or keyboard focus where there is a
+     pointer that can hover; always shown on touch screens. */
+  .card-action {
+    @apply absolute top-3 right-3 py-1.5 text-sm shadow-lg transition duration-300;
+  }
+  @media (hover: hover) {
+    .team-card:not(:hover):not(:focus-within) .card-action {
+      opacity: 0;
+      transform: translateY(-0.5rem);
+    }
+  }
   .team-card:hover .team-initial {
     transform: scale(1.25) rotate(-8deg);
   }
@@ -299,6 +310,38 @@
     background-image: repeating-linear-gradient(-60deg, rgb(255 255 255 / 0.35) 0 0.5rem, transparent 0.5rem 1.25rem);
     transition: width 1.4s cubic-bezier(0.2, 0.8, 0.2, 1);
     animation: shine 0.9s linear infinite;
+  }
+}
+
+/* Credits roll: a turning ring of text, slides that sweep in, a slowly drifting light. */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(3vh) scale(0.97);
+    filter: blur(8px);
+  }
+}
+@keyframes glow-drift {
+  50% {
+    transform: translate(-18vw, 10vh) scale(1.2);
+  }
+}
+@layer components {
+  .credits-ring {
+    animation: spin 60s linear infinite;
+  }
+  .credits-slide {
+    animation: slide-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .credits-glow {
+    position: absolute;
+    top: -20vh;
+    right: -20vw;
+    width: 70vw;
+    height: 70vw;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgb(0 160 220 / 0.28), transparent 65%);
+    animation: glow-drift 18s ease-in-out infinite;
   }
 }
 

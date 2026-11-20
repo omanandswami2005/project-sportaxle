@@ -1,6 +1,6 @@
 // Mirrors backend/app/schemas.py.
 
-export type Team = { id: number; name: string; captain: string; color: string };
+export type Team = { id: number; name: string; captain: string; color: string; captain_photo_url: string | null };
 
 export type PlayerStatus = "available" | "sold" | "unsold";
 
@@ -8,7 +8,7 @@ export type Player = {
   id: number;
   name: string;
   department: string;
-  details: string;
+  sports: string;
   photo_url: string | null;
   base_price: number;
   status: PlayerStatus;
@@ -22,6 +22,9 @@ export type AuctionState = {
   bid: number | null;
   team_id: number | null;
   min_bid: number | null;
+  seconds_left: number | null;
+  paused: boolean;
+  squad_limit: number | null; // most players a team may buy; null = no limit
   last: Player | null;
 };
 
@@ -39,6 +42,15 @@ export type Match = {
   team_a_id: number;
   team_b_id: number;
   winner_id: number | null;
+};
+
+export type Fixture = {
+  id: number;
+  sport: string;
+  team_a_id: number;
+  team_b_id: number;
+  starts_at: string; // event-local time, e.g. "2026-11-25T10:00:00"
+  venue: string;
 };
 
 export type Standing = {
