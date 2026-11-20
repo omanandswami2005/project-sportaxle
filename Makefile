@@ -1,8 +1,14 @@
-.PHONY: install seed api web test test-api test-web e2e lint example-pdf
+.PHONY: install wipe feed seed api web test test-api test-web e2e lint example-pdf
 
 install:
 	cd backend && uv sync
 	cd frontend && pnpm install
+
+wipe:  ## WARNING: deletes ALL data in DATABASE_URL (teams, captains, players, photos, results)
+	cd backend && uv run python -m app.wipe --yes
+
+feed:  ## load captains + players from the raw exports into an EMPTY database; codes go to backend/captain-codes.csv
+	cd backend && uv run python -m app.feed --captains ../captains.zip --form "../SportsAxle 2026 - Player Nomination Form(1-62).xlsx" --players-zip ../Question.zip
 
 seed:  ## WARNING: wipes the database, then loads demo data
 	cd backend && uv run python -m app.seed

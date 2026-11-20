@@ -9,6 +9,8 @@ dashboards, player list, points table. Requirements are in `docs/srs.md`, design
 ```
 make install     # uv sync + pnpm install
 make seed        # WIPES the database, loads demo data
+make wipe        # WIPES everything (DATABASE_URL), no demo data
+make feed        # loads the real exports into an empty database
 make api         # FastAPI on :8000
 make web         # Vite on :5173 (proxies /api)
 make test        # pytest + vitest, ~3 s — run after every change
@@ -30,6 +32,7 @@ Single test: `cd backend && uv run pytest tests/test_auction.py -k bid_rules`.
 - `backend/app/schemas.py` — what each caller may see.
 - `backend/app/routers/admin.py` — auctioneer-only setup (add/edit team, add/edit/remove player, photo upload).
 - `backend/app/load_photos.py` — copies seeded `backend/photos/` into the database (read-only hosts).
+- `backend/app/wipe.py` / `backend/app/feed.py` — `make wipe` deletes all event data; `make feed` loads captains.zip + the Forms export + its photo zip into an empty database and writes random captain codes to `backend/captain-codes.csv` (git-ignored).
 - `docs/example/` — `make example-pdf` rebuilds the sample squads PDF (demo data only).
 - `backend/app/import_players.py` — builds `seed.json` players from the Forms export (photos must be downloaded first).
 - `backend/app/routers/matches.py` — results, fixtures (schedule) and points tables (overall or `?sport=`).
