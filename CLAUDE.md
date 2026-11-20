@@ -28,7 +28,11 @@ Single test: `cd backend && uv run pytest tests/test_auction.py -k bid_rules`.
 - `backend/app/routers/` — HTTP only. No business rules here.
 - `backend/app/services/` — rules (`auction.py`, `standings.py`). No FastAPI imports here.
 - `backend/app/schemas.py` — what each caller may see.
-- `backend/app/routers/admin.py` — auctioneer-only setup (add team, add/remove player, photo upload).
+- `backend/app/routers/admin.py` — auctioneer-only setup (add/edit team, add/edit/remove player, photo upload).
+- `backend/app/load_photos.py` — copies seeded `backend/photos/` into the database (read-only hosts).
+- `docs/example/` — `make example-pdf` rebuilds the sample squads PDF (demo data only).
+- `backend/app/import_players.py` — builds `seed.json` players from the Forms export (photos must be downloaded first).
+- `backend/app/routers/matches.py` — results, fixtures (schedule) and points tables (overall or `?sport=`).
 - `frontend/src/lib/api.ts` — the only place that calls `fetch`. Use `api()` and `usePoll()`.
 - `frontend/src/lib/motion.tsx` — scroll and pointer animation helpers. No animation library.
 - `frontend/public/media/` — the Sports Axle film shown on the home page.
@@ -42,15 +46,16 @@ Single test: `cd backend && uv run pytest tests/test_auction.py -k bid_rules`.
    only through `DashboardOut` on `GET /api/me/dashboard`, for the signed-in captain. Never add
    them to `TeamOut`, `PlayerOut` or `AuctionOut`. `tests/test_privacy.py` guards this; if you
    add a public endpoint, add its path to that test.
-2. **Auction state changes go through `services/auction.py`**, inside its lock. The lock
-   assumes one server process: never add `--workers`.
+2. **Auction state changes go through `services/auction.py`**, inside its lock and after
+   `get_state()` (which row-locks on Postgres). With SQLite, never add `--workers`.
 3. **Standings and spending are computed, never stored.** Do not add columns for them.
 4. **Authorise on the server** with `require_admin` / `require_captain`. Hiding a button is
    not access control.
 5. White text goes on `brand-dark` or `ink`, not on `brand` (fails contrast).
 6. **Animated elements' base style is their final state**, so the page is complete with
    animations off. Never hide content behind an animation that reduced motion disables.
-7. **Uploads:** keep the type allow-list, size cap and random filename in `admin.py`.
+7. **Uploads:** keep the type allow-list, size cap, decode-and-re-encode and random name in
+   `admin.py`. Photos live in the `photo` table, not on disk (Vercel's disk is read-only).
 
 ## Principles
 

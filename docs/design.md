@@ -21,12 +21,12 @@ proxies `/api` and `/photos` to FastAPI on port 8000. In production FastAPI serv
 | Layer | Choice | Why |
 |---|---|---|
 | API | FastAPI | Typed request and response models double as validation and as the privacy boundary |
-| Data | SQLModel on SQLite | One model definition; no database server to run for a 300-person event |
+| Data | SQLModel on SQLite | One model definition; no database server to run for a 150-person event |
 | Auth | PyJWT bearer tokens, PBKDF2-hashed access codes (stdlib) | Stateless and two small functions |
 | Python tooling | uv, ruff, pytest | Fast installs, lint and tests |
 | UI | React 19, TypeScript, Vite | Standard, fast builds |
 | Styling | Tailwind CSS v4 | Brand tokens live in one `@theme` block |
-| Routing | react-router | Five pages |
+| Routing | react-router | A handful of pages |
 | JS tooling | pnpm, Vitest, Playwright | pnpm is the project rule for the UI |
 
 Left out on purpose: Redux or a query library (one 20-line `usePoll` hook covers it), an
@@ -39,11 +39,11 @@ backend/
   app/
     config.py      settings from environment variables
     db.py          engine and session dependency
-    models.py      tables: Team, Player, Auction, Match
+    models.py      tables: Team, Player, Auction, Fixture, Match
     schemas.py     API shapes (what each caller is allowed to see)
     security.py    PIN hashing, tokens, require_admin / require_captain
     services/      business rules, no HTTP: auction.py, standings.py
-    routers/       thin HTTP layer: auth, catalog, admin, auction, matches
+    routers/       thin HTTP layer: auth, catalog, admin, auction, matches (+ fixtures)
     seed.py        rebuild the database from JSON
     main.py        wiring, static files
   tests/           pytest, in-memory database
@@ -52,12 +52,15 @@ frontend/
   src/
     lib/           api.ts (fetch + usePoll), auth.tsx, format.ts, types.ts,
                    motion.tsx (useInView, Reveal, CountUp, Tilt)
-    components/    Logo, PlayerCard (Avatar, StatusBadge)
-    pages/         Home, Auction, Players, Dashboard, Leaderboard, Admin, Login
+    components/    Logo, PlayerCard (Avatar, StatusBadge), Confetti
+    assets/fonts/  Bricolage Grotesque and Inter (static, Latin subset, SIL OFL) for the PDF
+    lib/           also squadsPdf.ts (the PDF layout) and pdfAssets.ts (fonts and round photos)
+    pages/         Home, Auction, Screen, Players, Schedule, Leaderboard, Squads,
+                   Dashboard, Admin, Login
     ui.test.tsx    Vitest
-  public/media/    the Sports Axle film (mp4)
+  public/media/    the Sports Axle film (mp4), the credits soundtrack (m4a)
   e2e/             Playwright smoke test
-docs/              srs.md, design.md
+docs/              srs.md, design.md, example/ (squads-example.pdf: `make example-pdf`)
 SportsAxle.html    the original motion film: the visual reference
 ```
 
@@ -65,9 +68,10 @@ SportsAxle.html    the original motion film: the visual reference
 
 | Table | Columns | Notes |
 |---|---|---|
-| `team` | id, name, captain, color, **purse**, **pin_hash** | bold = private |
-| `player` | id, name, department, details, photo_url, base_price, status, team_id, **sold_price** | status: available, sold, unsold |
-| `auction` | id (always 1), player_id, bid, team_id, last_player_id | the single live state row |
+| `team` | id, name, captain, captain_photo_url, color, **purse**, **pin_hash** | bold = private |
+| `player` | id, name, department, sports, photo_url, base_price, status, team_id, **sold_price** | status: available, sold, unsold |
+| `auction` | id (always 1), player_id, bid, team_id, last_player_id, ends_at, paused_left | the single live state row; `ends_at` is the countdown deadline (epoch seconds); `paused_left` holds the frozen seconds while paused |
+| `fixture` | id, sport, team_a_id, team_b_id, starts_at, venue | a scheduled match; becomes a `match` when its result is recorded |
 | `match` | id, sport, team_a_id, team_b_id, winner_id | winner null = tie |
 
 Derived on every read and never stored: a team's spending (sum of `sold_price`), remaining
@@ -77,8 +81,8 @@ purse, and the whole points table. One source of truth means they cannot drift.
 
 ### 5.1 Polling, not WebSockets
 
-The auction page fetches `GET /api/auction` once a second. With under 300 viewers that is
-under 300 small requests a second against an indexed primary-key read, well inside what one
+The auction page fetches `GET /api/auction` once a second. With about 150 people in the audience and at most about 50 online at once, that is
+under 50 small requests a second against an indexed primary-key read, well inside what one
 process handles, and it meets the 2-second requirement (FR-2.3). Polling needs no connection
 management or reconnect logic and is trivial to test. If the audience grows tenfold, swap
 `usePoll` for a server-sent event stream; nothing else changes.
@@ -89,8 +93,70 @@ management or reconnect logic and is trivial to test. If the audience grows tenf
 close). Each change reads the state, checks the rules and commits inside the lock, so two
 simultaneous bids cannot both win and a purse cannot be overdrawn (NFR-2).
 
-**Constraint:** this is correct only with one server process. Run uvicorn with a single
-worker. Scaling out would require a database row lock instead.
+On Postgres every change also locks the single `auction` row (`SELECT ... FOR UPDATE`, ignored by
+SQLite), so bids stay serialised across several processes or serverless instances. The public
+poll reads without a lock and only locks when a countdown has actually expired. With SQLite, still
+run one uvicorn worker.
+
+### 5.2a Bid countdown
+
+Starting a player sets `ends_at` to now + `BID_SECONDS`; every accepted bid moves it to now +
+`BID_SECONDS` again. There is no background timer: the expired player is settled, inside the
+lock, by whichever request comes next. `GET /api/auction` is polled every second by every
+viewer, so in practice the hammer falls within a second of zero; a bid, "Next player" or
+"close" arriving first settles it too, so a late bid can never win. If the auctioneer's device dies, an expired countdown still settles on
+its own at the next poll by anyone; only starting the next player needs an admin, who can sign
+in on another device (there is deliberately no automatic pause: it would misfire whenever the
+auctioneer's tab is in the background). The server sends
+`seconds_left` (never a timestamp), so viewers' clocks do not matter.
+
+### 5.2b Pause, undo and edits
+
+- **Pause** moves the remaining time from `ends_at` into `paused_left`; **resume** moves it
+  back. While paused nothing can expire and bids are refused.
+- **Undo** reverses only the last result: the player becomes available, loses any team and
+  price, and goes straight back on the block with a fresh countdown. Because spending is a
+  sum over `sold_price`, the buyer's purse is refunded with no extra bookkeeping. One level of
+  undo is enough for a mis-click; there is no history to step back through.
+- **Edits** to teams and players also go through `services/auction.py` inside the lock: a
+  new purse is checked against spending, and a base price cannot change on the block, so
+  neither can race with a bid. The purse field is write-only, like at creation. Blank form
+  fields mean "unchanged", which lets the auctioneer reset an access code alone. A replaced
+  uploaded photo is deleted; seeded photos (in sub-folders) are never deleted.
+- **Squad limit** is one row in `eventsetting` (a new table, so existing databases only need
+  `create_all`). Changing it takes the auction lock and refuses a value below any existing squad,
+  counting the player a team is leading on. `place_bid` enforces it; `AuctionOut.squad_limit` shows it.
+- **Random draw.** `start_next` picks with `secrets.choice` from `available` players only, so
+  unsold players never loop; the auctioneer re-offers one by choosing it. Tests replace `_pick`.
+
+### 5.2c Schedule, per-sport tables, squads
+
+Fixtures are a plain table ordered by `starts_at`, a naive event-local time (everyone is in
+one office). Recording a fixture's result creates the `match` and deletes the fixture in one
+commit, so a match is never both scheduled and played. A sport's table is the same
+`standings.compute` run over that sport's matches (`?sport=`, case-insensitive), so there is
+still one ranking rule. The squads page, its CSV and its PDF (`lib/squadsPdf.ts`, drawn with jsPDF, loaded only when the button is clicked) are built in the browser from the public
+team and player lists: no new endpoint and no prices. The PDF has a cover, then a page per team in
+Data Axle colours with the logo drawn as vector shapes. It embeds Bricolage Grotesque (headings)
+and Inter (text) from `src/assets/fonts` and crops each photo to a circle on a canvas; a photo or
+font that fails to load falls back to initials or Helvetica, so the download never fails.
+`make example-pdf` rebuilds `docs/example/squads-example.pdf` from the demo seed and generated
+placeholder portraits (never real staff data).
+
+### 5.2d Big screen
+
+`/screen` is a fixed full-viewport layer over the normal layout (it hides the header) sized
+in `vh` units so it fills any projector. It polls `/api/auction` like the auction page.
+The SOLD splash names the team, not the price: `last` is a `PlayerOut`, which has no price.
+
+### 5.2e Credits
+
+`/credits` and the big screen's idle state share one `CreditsShow` component, so the
+projector rolls credits before the auction and switches to the live view by itself when the
+first player goes on the block. Names live in `frontend/src/credits.ts`; captains come from
+`/api/teams`. The soundtrack (`public/media/credits-ambient.m4a`, a 64-second seamless loop,
+mastered quiet) starts only on a click, because browsers block autoplay with sound. Under
+reduced motion the slides still change but without movement, and the bands stand still.
 
 ### 5.3 Privacy is enforced by response schemas
 
@@ -104,8 +170,12 @@ endpoint for private field names.
 ### 5.4 Photo uploads
 
 `POST /api/players` accepts an optional image. The server checks the content type against
-an allow-list (JPG, PNG, WebP), caps the size at 2 MB, and saves it under a random name in
-`backend/photos/`; the uploaded filename is never used. Photos are served at `/photos`.
+an allow-list (JPG, PNG, WebP), caps the size at 2 MB, and re-encodes it as WebP (at most 640 px)
+under a random name, and stores the bytes in the `photo` table in the same commit as the team or
+player change, so a refused edit leaves nothing behind and a read-only host (Vercel) works. The
+uploaded filename is never used. `GET /photos/<path>` serves the table first, then the seeded
+folder `backend/photos/` (guarded against `..`). Seeded photos are not in git: on Vercel run
+`python -m app.load_photos` once against the real database to copy them into the table.
 
 ### 5.5 Home page motion
 
@@ -122,8 +192,16 @@ from the `ADMIN_PIN` environment variable. Codes are stored as salted PBKDF2-SHA
 The API returns a 12-hour JWT holding the role and team id; the browser keeps it in
 `localStorage` and sends it as a bearer token.
 
-There is no login rate limiting. Use long access codes and keep the app on the internal
-network.
+Wrong codes are counted in the `loginfailure` table: 10 per person (IP) per target in 5 minutes,
+and 60 from everyone together, give `429` until the window passes. It is a cooldown, so nobody
+can lock a captain or the auctioneer out for long, and one person's typos do not block others.
+The IP is the first `X-Forwarded-For` entry only when `VERCEL` is set (otherwise the header is
+the client's own claim and is ignored). Admin tokens carry an HMAC of `ADMIN_PIN` keyed by
+`SECRET_KEY`: to rotate a leaked admin code, change `ADMIN_PIN` and redeploy, which signs out
+every old admin session. A captain's token carries the salt of their access code, so resetting the code signs
+that token out. On startup, a non-SQLite database (or Vercel) refuses the default `SECRET_KEY`
+(and one under 32 characters) and the default or short `ADMIN_PIN`. Responses carry nosniff,
+frame-deny and a CSP; uploads are decoded and re-encoded as WebP, with a pixel cap.
 
 ## 6. API
 
@@ -137,15 +215,25 @@ All paths are under `/api`. Rule violations return `409` with a readable `detail
 | POST | `/teams` | admin | add a team (JSON, includes purse and access code) |
 | POST | `/players` | admin | add a player (multipart form, optional `photo` file) |
 | DELETE | `/players/{id}` | admin | remove a player who is not sold or on the block |
-| GET | `/auction` | anyone | on-block player, bid, leading team, `min_bid`, last result |
-| POST | `/auction/next` | admin | put the next player on the block |
+| PATCH | `/teams/{id}` | admin | edit a team (multipart; optional `captain_photo`, `purse`, `pin`) |
+| PATCH | `/players/{id}` | admin | edit a player (multipart; optional `photo`) |
+| GET | `/auction` | anyone | on-block player, bid, leading team, `min_bid`, `seconds_left`, `paused`, last result; settles an expired countdown |
+| POST | `/auction/pause` | admin | freeze the countdown and bids |
+| POST | `/auction/resume` | admin | continue the countdown |
+| POST | `/auction/undo` | admin | put the last result's player back on the block |
+| POST | `/auction/next` | admin | put a random unseen player on the block, or the chosen `{player_id}` |
+| PUT | `/auction/squad-limit` | admin | `{limit}` (1-100, or null for none) |
 | POST | `/auction/bid` | captain | `{amount}` |
 | POST | `/auction/close` | admin | sell or mark unsold |
 | GET | `/me/dashboard` | captain | own squad, prices, spent, remaining |
 | GET | `/matches` | anyone | results, newest first |
 | POST | `/matches` | admin | record a result |
 | DELETE | `/matches/{id}` | admin | remove a wrong result |
-| GET | `/standings` | anyone | computed points table |
+| GET | `/standings` | anyone | computed points table; `?sport=` for one sport |
+| GET | `/fixtures` | anyone | scheduled matches, soonest first |
+| POST | `/fixtures` | admin | schedule a match |
+| DELETE | `/fixtures/{id}` | admin | remove a fixture |
+| POST | `/fixtures/{id}/result` | admin | `{winner_id or null}`: record it as a match |
 
 The server sends `min_bid` so the bidding rule lives in one place and the UI never
 recalculates it.
@@ -180,13 +268,14 @@ Tokens are defined once in `frontend/src/index.css` under `@theme`.
 
 | Suite | Command | Time | Covers |
 |---|---|---|---|
-| API | `make test-api` | ~2 s | Auction rules FR-2.5 to 2.10, roles, privacy FR-3.5 and 4.5, standings FR-5.2 to 5.7, admin setup FR-6.5 to 6.8 |
-| UI unit | `make test-web` | <1 s | Formatting, player card states FR-2.2, 4.2, 4.3 |
-| End to end | `make e2e` | ~15 s | One pass through FR-1 to FR-6 in real Chrome |
+| API | `make test-api` | ~2 s | Auction rules FR-2.5 to 2.15 (countdown and pause with a controllable clock), edits FR-6.10 and 6.11, fixtures and per-sport tables FR-5.9 to 5.11, roles, privacy FR-3.5 and 4.5, standings FR-5.2 to 5.7, admin setup FR-6.5 to 6.8, startup seeding FR-6.9 |
+| UI unit | `make test-web` | <1 s | Formatting, player card states FR-2.2, 4.2, 4.3, countdown, squads CSV FR-7.1, schedule grouping |
+| End to end | `make e2e` | ~16 s | One pass through FR-1 to FR-7 in real Chrome |
 
 How they stay fast and cheap to read:
 
-- API tests use an in-memory SQLite database per test and call the app in-process.
+- API tests use an in-memory SQLite database per test and call the app in-process, with
+  access-code hashing cut to one PBKDF2 round (`security.PIN_ITERATIONS`; production keeps 100,000).
 - UI unit tests render components to a string; no browser or DOM emulation.
 - The end-to-end suite is one test using the installed Chrome (nothing to download),
   against FastAPI serving the built UI from a freshly seeded throwaway database.
@@ -214,14 +303,22 @@ make web           # terminal 2, open http://localhost:5173
 ```
 
 For the real event: copy `seed.example.json` to `backend/seed.json` (git-ignored), put real
-names, purses and access codes in it, drop photos in `backend/photos/` and reference them as
-`/photos/<file>`. Teams and players can also be added later on the admin page. Then:
+names, purses and access codes in it, drop photos in `backend/photos/` (captains in
+`backend/photos/captains/`) and reference them as `/photos/<file>` in `photo_url` or
+`captain_photo_url`. Teams and players can also be added later on the admin page.
+
+`seed.json` (access codes) and `photos/` (staff photos) are never committed, so a deploy from
+git does not have them: copy both to the server yourself. Then:
 
 ```
-cd backend && uv run python -m app.seed seed.json
 cd frontend && pnpm build
-cd backend && SECRET_KEY=<random> ADMIN_PIN=<code> uv run uvicorn app.main:app --host 0.0.0.0
+cd backend && SEED_FILE=seed.json SECRET_KEY=<random> ADMIN_PIN=<code> \
+  uv run uvicorn app.main:app --host 0.0.0.0
 ```
+
+With `SEED_FILE` set, the first start fills the empty database from that file and every later
+start leaves it alone, so a restart mid-auction loses nothing. To start over on purpose, run
+`uv run python -m app.seed seed.json` (wipes the database).
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -229,3 +326,5 @@ cd backend && SECRET_KEY=<random> ADMIN_PIN=<code> uv run uvicorn app.main:app -
 | `ADMIN_PIN` | `admin-1234` | auctioneer access code; **must** be set for the event |
 | `DATABASE_URL` | `sqlite:///sportsaxle.db` | database location |
 | `BID_INCREMENT` | `100` | minimum raise in rupees |
+| `BID_SECONDS` | `30` | countdown per player, restarted by every bid |
+| `SEED_FILE` | unset | JSON loaded on startup **only if the database has no teams** (FR-6.9) |
