@@ -4,7 +4,10 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from .config import settings
 
-engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+if settings.database_url.startswith("sqlite"):
+    engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(settings.database_url)
 
 
 def init_db() -> None:
