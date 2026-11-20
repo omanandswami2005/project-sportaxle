@@ -28,7 +28,7 @@ def test_points_ranking_and_shared_ranks():
     assert [r.rank for r in level] == [1, 1]
 
 
-def test_recording_a_result_updates_the_table(client, admin, alpha):
+def test_recording_a_result_updates_the_table(client, admin, alpha, squads):
     body = {"sport": "Cricket", "team_a_id": 1, "team_b_id": 2, "winner_id": 2}
     assert client.post("/api/matches", json=body).status_code == 401
     assert client.post("/api/matches", json=body, headers=alpha).status_code == 403

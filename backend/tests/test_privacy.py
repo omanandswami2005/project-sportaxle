@@ -16,7 +16,9 @@ def test_public_endpoints_never_expose_money(client, admin, alpha):
     client.post("/api/auction/bid", json={"amount": 200}, headers=alpha)
     client.post("/api/auction/close", headers=admin)
 
-    for path in ("/api/teams", "/api/players", "/api/auction", "/api/standings", "/api/matches"):
+    client.post("/api/fixtures", json={"sport": "Chess", "team_a_id": 1, "team_b_id": 2, "starts_at": "2026-11-25T10:00"}, headers=admin)
+    public = ("/api/teams", "/api/players", "/api/auction", "/api/standings", "/api/standings?sport=Chess", "/api/matches", "/api/fixtures")
+    for path in public:
         res = client.get(path)
         assert res.status_code == 200
         assert not keys(res.json()) & PRIVATE_KEYS, path
