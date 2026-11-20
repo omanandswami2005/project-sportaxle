@@ -1,4 +1,4 @@
-.PHONY: install seed api web test test-api test-web e2e lint
+.PHONY: install seed api web test test-api test-web e2e lint example-pdf
 
 install:
 	cd backend && uv sync
@@ -27,3 +27,7 @@ e2e:  ## full stack in real Chrome, about 10 seconds
 lint:
 	cd backend && uv run ruff check .
 	cd frontend && pnpm exec tsc --noEmit
+
+example-pdf:  ## rebuild docs/example/squads-example.pdf from the demo seed
+	cd backend && uv run python ../docs/example/make_avatars.py
+	cd frontend && node scripts/example-pdf.ts

@@ -10,6 +10,10 @@ backend/seed.json
 backend/photos/*
 !backend/photos/.gitkeep
 
+# Staff data exports (names, photos, emails) stay local
+*.xlsx
+*.zip
+
 # Python
 __pycache__/
 *.pyc
@@ -23,3 +27,5 @@ node_modules/
 frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
+.neon
+.vercel
