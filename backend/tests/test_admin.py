@@ -53,7 +53,9 @@ def test_admin_adds_a_player_with_a_photo_and_removes_them(
     assert player["status"] == "available" and player["photo_url"].endswith(".webp")
     shown = client.get(player["photo_url"])  # served from the database, not the disk
     assert shown.status_code == 200 and shown.headers["content-type"] == "image/webp"
-    assert "immutable" in shown.headers["cache-control"]
+    assert "max-age=86400" in shown.headers["cache-control"]
+    again = client.get(player["photo_url"], headers={"If-None-Match": shown.headers["etag"]})
+    assert again.status_code == 304 and again.content == b""  # unchanged: nothing re-sent
 
     assert client.delete(f"/api/players/{player['id']}", headers=admin).status_code == 204
     assert client.get(player["photo_url"]).status_code == 404

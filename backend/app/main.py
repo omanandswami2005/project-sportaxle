@@ -1,3 +1,4 @@
+import hashlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from .models import Photo
 from .routers import admin, auction, auth, catalog, matches
 from .seed import seed_if_empty
 from .services.auction import AuctionError, get_state
+
+PHOTO_CACHE = "public, max-age=86400, stale-while-revalidate=604800"
 
 ensure_safe(settings)  # at import, so a misconfigured deployment never serves a request
 
@@ -60,18 +63,22 @@ def auction_error(_: Request, exc: AuctionError) -> JSONResponse:
 
 
 @app.get("/photos/{path:path}", include_in_schema=False)
-def photo(path: str, session: Session = Depends(get_session)) -> Response:
-    """Uploaded photos come from the database; seeded ones (sub-folders) from the photos folder."""
+def photo(path: str, request: Request, session: Session = Depends(get_session)) -> Response:
+    """Uploaded photos come from the database; seeded ones (sub-folders) from the photos folder.
+    A day in the browser and CDN, a week of stale-while-revalidate; the ETag means a changed
+    photo (same name after a re-feed) is picked up and an unchanged one costs a 304."""
     row = session.get(Photo, path)
-    if row:  # names are random, so a browser may keep them for good
-        return Response(
-            row.data, media_type="image/webp",
-            headers={"Cache-Control": "public, max-age=31536000, immutable"},
-        )
+    if row:
+        etag = '"' + hashlib.md5(row.data, usedforsecurity=False).hexdigest() + '"'
+        headers = {"Cache-Control": PHOTO_CACHE, "ETag": etag}
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers=headers)
+        return Response(row.data, media_type="image/webp", headers=headers)
     file = (PHOTOS / path).resolve()
     if path and file.is_file() and file.is_relative_to(PHOTOS.resolve()):
-        return FileResponse(file, headers={"Cache-Control": "public, max-age=3600"})
+        return FileResponse(file, headers={"Cache-Control": PHOTO_CACHE})
     raise HTTPException(404, "Not found")
+
 
 if DIST.is_dir():  # production: serve the built React app from the same process
 

@@ -328,3 +328,10 @@ start leaves it alone, so a restart mid-auction loses nothing. To start over on 
 | `BID_INCREMENT` | `100` | minimum raise in rupees |
 | `BID_SECONDS` | `30` | countdown per player, restarted by every bid |
 | `SEED_FILE` | unset | JSON loaded on startup **only if the database has no teams** (FR-6.9) |
+
+## Caching and sound
+
+- `/assets/*` (hashed) is `immutable` for a year; `/media/*` is cached a day with stale-while-revalidate (`vercel.json`).
+- `/photos/*` is cached a day, stale-while-revalidate a week, with an ETag (304 when unchanged). Not `immutable`: `make feed` reuses photo names, so a changed photo must be picked up.
+- `public/sw.js` keeps `/photos` and `/assets` on the device (cache first, refreshed in the background). It never touches `/api`, the page or `/media`.
+- The big screen preloads every player and captain photo (`lib/preload.ts`) and plays synthesised cues (`lib/sound.ts`, Web Audio, nothing to download). Audio needs a click, hence the "Enable sound" button.

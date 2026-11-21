@@ -100,7 +100,7 @@ def test_vercel_serves_the_same_security_headers_as_the_api():
     from app.main import HEADERS
 
     config = json.loads((Path(__file__).parents[2] / "vercel.json").read_text())
-    sent = {h["key"]: h["value"] for rule in config["headers"] for h in rule["headers"]}
+    sent = {h["key"]: h["value"] for rule in config["headers"] if rule["source"] == "/(.*)" for h in rule["headers"]}
     assert sent == HEADERS
 
 

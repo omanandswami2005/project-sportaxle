@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Confetti } from "../components/Confetti";
 import { CreditsShow } from "./Credits";
@@ -5,14 +6,22 @@ import { Logo, Wordmark } from "../components/Logo";
 import { Avatar, SportChips } from "../components/PlayerCard";
 import { usePoll } from "../lib/api";
 import { money } from "../lib/format";
-import type { AuctionState, Team } from "../lib/types";
+import { preloadImages } from "../lib/preload";
+import { enableSound, soundOn, sounds } from "../lib/sound";
+import type { AuctionState, Player, Team } from "../lib/types";
 
 /** Projector view of the live auction: huge type, the countdown and a SOLD splash.
  *  Covers the site header; prices of past sales are never shown (they are private). */
 export default function Screen() {
   const { data: state } = usePoll<AuctionState>("/auction", 1000);
   const { data: teams } = usePoll<Team[]>("/teams", 30_000);
+  const { data: players } = usePoll<Player[]>("/players", 30_000);
   const team = (id: number | null) => teams?.find((t) => t.id === id);
+  const [sound, setSound] = useState(false);
+
+  // Warm every photo the reveal could need, so none of them waits on the network.
+  useEffect(() => preloadImages([...(teams ?? []).map((t) => t.captain_photo_url), ...(players ?? []).map((p) => p.photo_url)]), [teams, players]);
+  useAuctionSounds(state, sound);
 
   return (
     <div className="fixed inset-0 z-20 flex flex-col overflow-hidden bg-ink text-white">
@@ -24,6 +33,13 @@ export default function Screen() {
         <span className="ml-auto flex items-center gap-3 text-[2.4vh] font-bold tracking-widest uppercase">
           <span className="h-[1.6vh] w-[1.6vh] animate-pulse rounded-full bg-brand" /> Live auction
         </span>
+        <button
+          type="button"
+          onClick={() => enableSound(!sound).then(setSound)}
+          className="rounded-full border border-white/30 px-[1.4vh] py-[0.6vh] text-[1.8vh] text-white/70"
+        >
+          {sound ? "Sound on" : "Enable sound"}
+        </button>
         <Link to="/auction" className="text-[1.8vh] text-white/50 underline">
           Exit
         </Link>
@@ -129,4 +145,17 @@ function Result({ state, buyer }: { state: AuctionState; buyer?: Team }) {
       <p className="mt-[5vh] text-[2.6vh] text-white/50">Next player coming up…</p>
     </div>
   );
+}
+
+/** Plays a cue when the bid changes, in the last five seconds, and when a player is sold. */
+function useAuctionSounds(state: AuctionState | undefined, on: boolean) {
+  const prev = useRef<AuctionState | undefined>(undefined);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = state;
+    if (!on || !state || !before || !soundOn()) return;
+    if (state.player && state.bid !== before.bid && state.bid !== null) sounds.bid();
+    else if (state.player && !state.paused && state.seconds_left !== before.seconds_left && (state.seconds_left ?? 99) <= 5) sounds.tick();
+    if (before.player && !state.player && state.last) state.last.status === "sold" ? sounds.sold() : sounds.unsold();
+  }, [state, on]);
 }
