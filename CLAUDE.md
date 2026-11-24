@@ -10,13 +10,18 @@ dashboards, player list, points table. Requirements are in `docs/srs.md`, design
 make install     # uv sync + pnpm install
 make seed        # WIPES the database, loads demo data
 make wipe        # WIPES everything (DATABASE_URL), no demo data
-make feed        # loads the real exports into an empty database
+make feed        # loads data/ exports (form.xlsx, captains.zip, players.zip) into an empty database
 make api         # FastAPI on :8000
 make web         # Vite on :5173 (proxies /api)
 make test        # pytest + vitest, ~3 s — run after every change
 make e2e         # Playwright in installed Chrome, ~15 s — run before committing UI or API changes
 make lint        # ruff + tsc
+make db          # starts only the Postgres container (api/seed/wipe/feed do it for you)
+make up / down   # Docker: app + Postgres on :8000 (needs .env from .env.example)
 ```
+
+Copy `.env.example` to `.env` first: `make` reads it, and `api`/`seed`/`wipe`/`feed` use the
+Postgres container. Tests keep their own SQLite.
 
 Single test: `cd backend && uv run pytest tests/test_auction.py -k bid_rules`.
 
@@ -33,6 +38,7 @@ Single test: `cd backend && uv run pytest tests/test_auction.py -k bid_rules`.
 - `backend/app/routers/admin.py` — auctioneer-only setup (add/edit team, add/edit/remove player, photo upload).
 - `backend/app/load_photos.py` — copies seeded `backend/photos/` into the database (read-only hosts).
 - `backend/app/wipe.py` / `backend/app/feed.py` — `make wipe` deletes all event data; `make feed` loads captains.zip + the Forms export + its photo zip into an empty database and writes random captain codes to `backend/captain-codes.csv` (git-ignored).
+- `DEPLOY.md` — EC2 + Docker Compose deployment, S3 → `data/` → `make docker-feed`.
 - `docs/example/` — `make example-pdf` rebuilds the sample squads PDF (demo data only).
 - `backend/app/import_players.py` — builds `seed.json` players from the Forms export (photos must be downloaded first).
 - `backend/app/routers/matches.py` — results, fixtures (schedule) and points tables (overall or `?sport=`).

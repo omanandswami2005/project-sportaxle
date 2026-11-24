@@ -82,12 +82,14 @@ def read_players(xlsx: Path) -> list[dict]:
     sheet = openpyxl.load_workbook(xlsx, data_only=True).active
     rows = sheet.iter_rows(values_only=True)
     header = [" ".join(str(h or "").split()) for h in next(rows)]
-    col = {
-        "name": header.index("Full Name"),
-        "department": header.index("Department"),
-        "photo": next(i for i, h in enumerate(header) if h.startswith("Profile Photograph")),
-        "sports": next(i for i, h in enumerate(header) if h.startswith("Which sports")),
-    }
+    wanted = {"name": "Full Name", "department": "Department",
+              "photo": "Profile Photograph", "sports": "Which sports"}
+    col = {key: next((i for i, h in enumerate(header) if h.startswith(start)), None)
+           for key, start in wanted.items()}
+    if None in col.values():
+        missing = [wanted[key] for key, i in col.items() if i is None]
+        raise SystemExit(f"{xlsx.name} has no column starting with: {', '.join(missing)}. "
+                         "Export all responses from Forms (Open in Excel).")
     players = []
     for row in rows:
         if not row[col["name"]]:

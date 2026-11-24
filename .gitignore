@@ -27,8 +27,9 @@ node_modules/
 frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
-.neon
 .vercel
 
 # Generated captain access codes
 captain-codes*.csv
+!.env.example
+data/
