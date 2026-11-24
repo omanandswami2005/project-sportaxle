@@ -80,5 +80,5 @@ export function usePoll<T>(path: string | null, ms = 5000) {
     };
   }, [path, ms, tick]);
 
-  return { data, error, refresh };
+  return { data, setData, error, refresh };
 }

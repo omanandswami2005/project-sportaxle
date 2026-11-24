@@ -27,29 +27,33 @@ export function Countdown({ seconds, paused = false }: { seconds: number; paused
 
 /** The auctioneer's controls: pick who goes next, pause, close, undo. */
 function AuctioneerPanel({ state, act }: { state: AuctionState; act: (path: string, body?: unknown) => Promise<void> }) {
-  const { data: players } = usePoll<Player[]>("/players", 3000);
+  const { data: players, refresh: refreshPlayers } = usePoll<Player[]>("/players", 3000);
   const [pick, setPick] = useState("");
   const { player, bid, paused, last } = state;
   const waiting = players?.filter((p) => p.status !== "sold") ?? [];
+  const run = async (path: string, body?: unknown) => {
+    await act(path, body);
+    refreshPlayers();
+  };
 
   return (
     <div className="card mt-4 space-y-3">
       <b>Auctioneer</b>
       {player ? (
         <div className="flex flex-wrap items-center gap-3">
-          <button className="btn" onClick={() => act(paused ? "resume" : "pause")}>
+          <button className="btn" onClick={() => run(paused ? "resume" : "pause")}>
             {paused ? "Resume bidding" : "Pause bidding"}
           </button>
           <button
             className="btn"
             onClick={async () => {
               await act("close");
-              await act("next"); // straight on to the next (random) player
+              await run("next"); // straight on to the next (random) player
             }}
           >
             {bid === null ? "Unsold & next player →" : "Sold! & next player →"}
           </button>
-          <button className="btn-ghost" onClick={() => act("close")}>
+          <button className="btn-ghost" onClick={() => run("close")}>
             {bid === null ? "Mark unsold" : "Sold!"}
           </button>
         </div>
@@ -69,12 +73,12 @@ function AuctioneerPanel({ state, act }: { state: AuctionState; act: (path: stri
           </label>
           <button
             className="btn"
-            onClick={() => (act("next", pick ? { player_id: Number(pick) } : undefined), setPick(""))}
+            onClick={() => (run("next", pick ? { player_id: Number(pick) } : undefined), setPick(""))}
           >
             Next player
           </button>
           {last && (
-            <button className="btn-ghost" onClick={() => act("undo")}>
+            <button className="btn-ghost" onClick={() => run("undo")}>
               Undo: put {last.name} back up
             </button>
           )}
@@ -87,7 +91,7 @@ function AuctioneerPanel({ state, act }: { state: AuctionState; act: (path: stri
 export default function Auction() {
   const { session } = useAuth();
   const isCaptain = session?.role === "captain";
-  const { data: state, refresh } = usePoll<AuctionState>("/auction", 1000);
+  const { data: state, setData: setState, refresh } = usePoll<AuctionState>("/auction", 1000);
   const seconds = useSecondsLeft(state);
   const { data: teams } = usePoll<Team[]>("/teams", 60_000);
   // Only the signed-in captain ever receives their own purse.
@@ -97,7 +101,8 @@ export default function Auction() {
 
   const act = async (path: string, body?: unknown) => {
     try {
-      await api(`/auction/${path}`, "POST", body);
+      const next = await api<AuctionState>(`/auction/${path}`, "POST", body);
+      setState(next);
       setError(undefined);
       setCustom("");
     } catch (err) {

@@ -22,15 +22,20 @@ function AdminForm(props: {
   children: ReactNode;
 }) {
   const [note, setNote] = useState<{ ok: boolean; text: string }>();
+  const [busy, setBusy] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (busy) return;
     const form = event.currentTarget;
+    setBusy(true);
     try {
       setNote({ ok: true, text: await props.send(new FormData(form)) });
       form.reset();
     } catch (err) {
       setNote({ ok: false, text: (err as Error).message });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -38,7 +43,7 @@ function AdminForm(props: {
     <form onSubmit={submit} className="card space-y-3 p-6" aria-label={props.title}>
       <h2 className="text-2xl">{props.title}</h2>
       {props.children}
-      <button className="btn w-full">{props.submitLabel}</button>
+      <button className="btn w-full" disabled={busy}>{props.submitLabel}</button>
       {note && (
         <p role={note.ok ? "status" : "alert"} className={`font-bold ${note.ok ? "text-brand-dark" : ""}`}>
           {note.text}
