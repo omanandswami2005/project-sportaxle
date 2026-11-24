@@ -69,11 +69,11 @@ class LoginOut(BaseModel):
 
 
 class TeamIn(BaseModel):
-    name: str = Field(min_length=1, max_length=60)
-    captain: str = Field(min_length=1, max_length=80)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    captain: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
     color: str = Field("#00A0DC", pattern=r"^#[0-9a-fA-F]{6}$")
     purse: int = Field(gt=0, le=MAX_RUPEES)
-    pin: str = Field(min_length=6, max_length=64)
+    pin: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=64)]
 
 
 class BidIn(BaseModel):

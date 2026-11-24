@@ -39,7 +39,7 @@ def clean_name(raw: str) -> str:
     words = " ".join(raw.split())
     if words.isupper():
         words = words.title()
-    return " ".join(w[0].upper() + w[1:] for w in words.split(" "))
+    return " ".join(w[0].upper() + w[1:] for w in words.split(" ") if w)
 
 
 def clean_department(raw: str) -> str:
@@ -108,13 +108,21 @@ def read_players(xlsx: Path) -> list[dict]:
 def build(xlsx: Path, photos: Path | None, out_photos: Path, base_price: int) -> tuple[list[dict], list[str]]:
     found = index_photos(photos)
     players, missing = [], []
+    used: set[str] = set()
     for item in read_players(xlsx):
         link = item.pop("_link")
         file_name = unquote(urlparse(link).path.rsplit("/", 1)[-1]).lower()
         source = found.get(file_name)
         player = {**item, "base_price": base_price}
         if source:
-            name = f"{slug(item['name'])}.jpg"
+            base = slug(item["name"]) or "player"
+            stem = base
+            n = 2
+            while stem in used:
+                stem = f"{base}-{n}"
+                n += 1
+            used.add(stem)
+            name = f"{stem}.jpg"
             save_photo(source, out_photos / name)
             player["photo_url"] = f"/photos/players/{name}"
         else:

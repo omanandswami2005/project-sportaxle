@@ -23,14 +23,17 @@ function FixtureForm({ teams, sports, onSaved }: { teams: Team[]; sports: string
     event.preventDefault();
     const form = event.currentTarget;
     const data = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    const [a, b] = [Number(data.team_a_id), Number(data.team_b_id)];
     try {
       await api("/fixtures", "POST", {
         ...data,
-        team_a_id: Number(data.team_a_id),
-        team_b_id: Number(data.team_b_id),
+        team_a_id: a,
+        team_b_id: b,
       });
       setError(undefined);
       form.reset();
+      (form.elements.namedItem("team_a_id") as HTMLSelectElement).value = String(a);
+      (form.elements.namedItem("team_b_id") as HTMLSelectElement).value = String(b);
       onSaved();
     } catch (err) {
       setError((err as Error).message);

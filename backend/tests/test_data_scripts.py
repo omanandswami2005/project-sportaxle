@@ -46,23 +46,27 @@ def _png() -> bytes:
 def test_feed_loads_captains_and_players_with_photos_into_an_empty_database(engine, tmp_path):
     (tmp_path / "caps").mkdir()
     (tmp_path / "caps" / "IMG_1_ASHA RAO.png").write_bytes(_png())
+    (tmp_path / "caps" / "IMG_2_ASHA SHAH.png").write_bytes(_png())  # same first name
     book = openpyxl.Workbook()
     sheet = book.active
     sheet.append(["Full Name", "Department", "Profile Photograph", "Which sports"])
     sheet.append(["kiran shah", "QA", "https://x/y/pic_Kiran.png", "Chess;Cricket"])
+    sheet.append(["Kiran Shah", "Eng", "https://x/y/pic_Kiran2.png", "Carrom"])  # same full name
     book.save(tmp_path / "form.xlsx")
     (tmp_path / "ply").mkdir()
     (tmp_path / "ply" / "pic_Kiran.png").write_bytes(_png())
+    (tmp_path / "ply" / "pic_Kiran2.png").write_bytes(_png())
 
     with Session(engine) as s:
         codes, missing = feed.feed(s, tmp_path / "caps", tmp_path / "form.xlsx", tmp_path / "ply", 5000, 500, 6)
         assert missing == [] and codes[0][:2] == ("Team Asha", "Asha Rao")
-        team = s.exec(select(Team)).one()
-        assert team.purse == 5000 and team.pin_hash != codes[0][2]
+        assert codes[1][:2] == ("Team Asha S.", "Asha Shah")
+        teams = s.exec(select(Team).order_by(Team.id)).all()
+        assert len(teams) == 2 and teams[0].purse == 5000 and teams[0].pin_hash != codes[0][2]
         assert s.get(Photo, "captains/asha-rao.webp").data[:4] == b"RIFF"
-        player = s.exec(select(Player)).one()
-        assert player.photo_url == "/photos/players/kiran-shah.webp" and player.sports == "Chess, Cricket"
-        assert s.get(Photo, "players/kiran-shah.webp")
+        players = s.exec(select(Player).order_by(Player.id)).all()
+        assert [p.photo_url for p in players] == ["/photos/players/kiran-shah.webp", "/photos/players/kiran-shah-2.webp"]
+        assert s.get(Photo, "players/kiran-shah.webp") and s.get(Photo, "players/kiran-shah-2.webp")
         with pytest.raises(SystemExit):  # not empty any more: wipe first
             feed.feed(s, tmp_path / "caps", tmp_path / "form.xlsx", tmp_path / "ply", 5000, 500, None)
 

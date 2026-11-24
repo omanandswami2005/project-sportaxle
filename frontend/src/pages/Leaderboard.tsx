@@ -18,7 +18,7 @@ function ResultForm({ teams, sports, onSaved }: { teams: Team[]; sports: string[
     try {
       await api("/matches", "POST", { sport: value("sport"), team_a_id: a, team_b_id: b, winner_id: winner });
       setError(undefined);
-      form.reset();
+      (form.elements.namedItem("sport") as HTMLInputElement).value = "";
       onSaved();
     } catch (err) {
       setError((err as Error).message);

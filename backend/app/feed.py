@@ -57,16 +57,37 @@ def feed(session: Session, captains: Path, form: Path, players_dir: Path, purse:
         raise SystemExit("The database already has data. Run `python -m app.wipe --yes` first.")
 
     codes: list[tuple[str, str, str]] = []
+    team_names: set[str] = set()
+    photo_keys: set[str] = set()
     files = sorted(p for p in captains.rglob("*") if p.suffix.lower() in IMAGES)
     for i, file in enumerate(files):
-        captain = clean_name(file.stem.rsplit("_", 1)[-1])
-        key = f"captains/{slug(captain)}.webp"
+        captain = clean_name(file.stem.rsplit("_", 1)[-1]) or f"Captain {i + 1}"
+        base_key = slug(captain) or f"captain-{i + 1}"
+        stem = base_key
+        n = 2
+        while stem in photo_keys:
+            stem = f"{base_key}-{n}"
+            n += 1
+        photo_keys.add(stem)
+        key = f"captains/{stem}.webp"
+
+        words = captain.split()
+        team_name = f"Team {words[0]}"
+        if team_name in team_names and len(words) > 1:
+            team_name = f"Team {words[0]} {words[-1][0]}."
+        t_n = 2
+        base_team = team_name
+        while team_name in team_names:
+            team_name = f"{base_team} {t_n}"
+            t_n += 1
+        team_names.add(team_name)
+
         code = new_code()
         session.add(Photo(key=key, data=webp(file)))
-        session.add(Team(name=f"Team {captain.split()[0]}", captain=captain,
+        session.add(Team(name=team_name, captain=captain,
                          color=COLORS[i % len(COLORS)], purse=purse, pin_hash=hash_pin(code),
                          captain_photo_url=f"/photos/{key}"))
-        codes.append((f"Team {captain.split()[0]}", captain, code))
+        codes.append((team_name, captain, code))
 
     with tempfile.TemporaryDirectory() as tmp:
         players, missing = build(form, players_dir, Path(tmp), base_price)

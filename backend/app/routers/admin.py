@@ -81,6 +81,8 @@ def add_player(
     photo: UploadFile | None = None,
     session: Session = Depends(get_session),
 ):
+    if not name.strip() or not department.strip():
+        raise HTTPException(422, "Name and department cannot be blank")
     player = Player(
         name=name.strip(),
         department=department.strip(),
@@ -106,10 +108,10 @@ def edit_team(
     session: Session = Depends(get_session),
 ):
     changes = _filled(name=name, captain=captain, color=color, purse=purse)
-    if pin:
-        if len(pin) < 6:
+    if pin and pin.strip():
+        if len(pin.strip()) < 6:
             raise HTTPException(422, "Access code must be at least 6 characters")
-        changes["pin_hash"] = hash_pin(pin)
+        changes["pin_hash"] = hash_pin(pin.strip())
     old = session.get(Team, team_id)
     old_photo = old.captain_photo_url if old else None
     if captain_photo:

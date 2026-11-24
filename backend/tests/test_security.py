@@ -68,6 +68,12 @@ def test_lowering_a_purse_cannot_undercut_the_leading_bid(client, admin, alpha):
 def test_amounts_are_capped_and_blank_names_are_not_saved(client, admin, alpha):
     big = {"name": "Z", "captain": "Z", "purse": 10**12, "pin": "123456"}
     assert client.post("/api/teams", json=big, headers=admin).status_code == 422
+    blank_team = {"name": "   ", "captain": "Z", "purse": 1000, "pin": "123456"}
+    assert client.post("/api/teams", json=blank_team, headers=admin).status_code == 422
+    blank_pin = {"name": "Z", "captain": "Z", "purse": 1000, "pin": "      "}
+    assert client.post("/api/teams", json=blank_pin, headers=admin).status_code == 422
+    blank_player = {"name": "   ", "department": "Eng", "base_price": "200"}
+    assert client.post("/api/players", data=blank_player, headers=admin).status_code == 422
     client.post("/api/auction/next", headers=admin)
     assert client.post("/api/auction/bid", json={"amount": 10**12}, headers=alpha).status_code == 422
     assert client.patch("/api/teams/1", data={"name": "   "}, headers=admin).json()["name"] == "Alpha"

@@ -123,18 +123,21 @@ function cover(ctx: Ctx, teams: Team[], players: Player[]) {
   const signed = players.filter((p) => p.team_id !== null).length;
   doc.setTextColor(...STEEL).text(`${teams.length} teams · ${signed} players signed`, M, 76);
   let y = 92;
+  const dense = teams.length > 10;
+  const step = dense ? Math.min(20, Math.floor((H - 115) / teams.length)) : 20;
+  const avSize = dense ? Math.max(8, step - 4) : 12;
   for (const team of teams) {
     const count = players.filter((p) => p.team_id === team.id).length;
-    doc.setFillColor(...rgb(team.color)).roundedRect(M, y - 5, 3, 11, 1, 1, "F");
-    avatar(ctx, team.captain, team.captain_photo_url, M + 8, y - 5.5, 12, MIST);
-    face(ctx, "display", 14);
-    doc.setTextColor(...INK).text(team.name, M + 24, y);
-    face(ctx, "body", 10);
-    doc.setTextColor(...STEEL).text(`Captain ${team.captain}`, M + 24, y + 5.5);
-    face(ctx, "display", 16);
-    doc.setTextColor(...BRAND_DARK).text(String(count), W - M, y + 2, { align: "right" });
-    y += 20;
-    if (y > H - 30) break; // a cover holds about 10 teams
+    doc.setFillColor(...rgb(team.color)).roundedRect(M, y - 5, 3, Math.max(7, avSize - 1), 1, 1, "F");
+    avatar(ctx, team.captain, team.captain_photo_url, M + 8, y - 5.5, avSize, MIST);
+    face(ctx, "display", dense ? 11.5 : 14);
+    doc.setTextColor(...INK).text(team.name, M + 12 + avSize, y);
+    face(ctx, "body", dense ? 8.5 : 10);
+    doc.setTextColor(...STEEL).text(`Captain ${team.captain}`, M + 12 + avSize, y + (dense ? 4.2 : 5.5));
+    face(ctx, "display", dense ? 13 : 16);
+    doc.setTextColor(...BRAND_DARK).text(String(count), W - M, y + (dense ? 1.5 : 2), { align: "right" });
+    y += step;
+    if (y > H - 22) break;
   }
 }
 
