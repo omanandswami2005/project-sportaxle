@@ -8,7 +8,7 @@ Companion to `srs.md`. Describes how the requirements are built and why.
 Browser (React SPA)
    │  JSON over HTTP, polling
    ▼
-FastAPI  ──►  SQLite (one file)
+FastAPI  ──►  Postgres (Docker container; SQLite for tests)
    └─ also serves the built SPA and player photos
 ```
 
@@ -21,7 +21,7 @@ proxies `/api` and `/photos` to FastAPI on port 8000. In production FastAPI serv
 | Layer | Choice | Why |
 |---|---|---|
 | API | FastAPI | Typed request and response models double as validation and as the privacy boundary |
-| Data | SQLModel on SQLite | One model definition; no database server to run for a 150-person event |
+| Data | SQLModel on Postgres (Docker), SQLite in tests | One model definition; Postgres row locks keep bids serialised; tests need no server |
 | Auth | PyJWT bearer tokens, PBKDF2-hashed access codes (stdlib) | Stateless and two small functions |
 | Python tooling | uv, ruff, pytest | Fast installs, lint and tests |
 | UI | React 19, TypeScript, Vite | Standard, fast builds |
@@ -30,7 +30,7 @@ proxies `/api` and `/photos` to FastAPI on port 8000. In production FastAPI serv
 | JS tooling | pnpm, Vitest, Playwright | pnpm is the project rule for the UI |
 
 Left out on purpose: Redux or a query library (one 20-line `usePoll` hook covers it), an
-ORM migration tool (the database is rebuilt from the seed file), Docker, WebSockets (see 5.1).
+ORM migration tool (the database is rebuilt from the seed file), WebSockets (see 5.1).
 
 ## 3. Repository layout
 
@@ -87,6 +87,17 @@ process handles, and it meets the 2-second requirement (FR-2.3). Polling needs n
 management or reconnect logic and is trivial to test. If the audience grows tenfold, swap
 `usePoll` for a server-sent event stream; nothing else changes.
 
+`usePoll` sends one request at a time (the next is scheduled after the answer) and drops an
+answer that arrives after a `refresh()`, so a slow network never piles requests up or shows an
+older bid after a newer one.
+
+On Vercel the auction felt slow and out of sync with 3–4 captains bidding at once. Polling was not
+the cause: every poll was a serverless call that could cold-start and then crossed the network to
+a remote database, and overlapping polls could arrive out of order. On one EC2 instance with
+Postgres beside it (`DEPLOY.md`) a poll is a local primary-key read of a few milliseconds, and 14
+people polling once a second is about 14 requests a second. WebSockets would add connection and
+reconnect handling without making that faster.
+
 ### 5.2 Bids are serialised by one lock
 
 `services/auction.py` holds a single `threading.Lock` around every state change (start, bid,
@@ -107,8 +118,10 @@ viewer, so in practice the hammer falls within a second of zero; a bid, "Next pl
 "close" arriving first settles it too, so a late bid can never win. If the auctioneer's device dies, an expired countdown still settles on
 its own at the next poll by anyone; only starting the next player needs an admin, who can sign
 in on another device (there is deliberately no automatic pause: it would misfire whenever the
-auctioneer's tab is in the background). The server sends
-`seconds_left` (never a timestamp), so viewers' clocks do not matter.
+auctioneer's tab is in the background). The server sends `seconds_left` and `ms_left` (never a timestamp), so viewers' clocks do not
+matter. The browser counts down locally from `ms_left` using `performance.now()` (`lib/countdown.ts`)
+and re-anchors on every poll, bid or tab wake-up, so the second hand ticks smoothly even if a poll
+is slightly late while the server remains the sole authority on when bidding closes.
 
 ### 5.2b Pause, undo and edits
 
@@ -268,7 +281,7 @@ Tokens are defined once in `frontend/src/index.css` under `@theme`.
 
 | Suite | Command | Time | Covers |
 |---|---|---|---|
-| API | `make test-api` | ~2 s | Auction rules FR-2.5 to 2.15 (countdown and pause with a controllable clock), edits FR-6.10 and 6.11, fixtures and per-sport tables FR-5.9 to 5.11, roles, privacy FR-3.5 and 4.5, standings FR-5.2 to 5.7, admin setup FR-6.5 to 6.8, startup seeding FR-6.9 |
+| API | `make test-api` | ~2 s | Auction rules FR-2.5 to 2.15 and reset FR-2.20 (countdown and pause with a controllable clock), edits FR-6.10 and 6.11, fixtures and per-sport tables FR-5.9 to 5.11, roles, privacy FR-3.5 and 4.5, standings FR-5.2 to 5.7, admin setup FR-6.5 to 6.8, base price for all FR-6.13, startup seeding FR-6.9 |
 | UI unit | `make test-web` | <1 s | Formatting, player card states FR-2.2, 4.2, 4.3, countdown, squads CSV FR-7.1, schedule grouping |
 | End to end | `make e2e` | ~16 s | One pass through FR-1 to FR-7 in real Chrome |
 
@@ -297,7 +310,8 @@ How they stay fast and cheap to read:
 
 ```
 make install
-make seed          # wipes the database and loads backend/seed.example.json
+cp .env.example .env   # POSTGRES_PASSWORD, SECRET_KEY, ADMIN_PIN
+make seed          # starts the Postgres container, wipes it, loads backend/seed.example.json
 make api           # terminal 1
 make web           # terminal 2, open http://localhost:5173
 ```
@@ -324,10 +338,38 @@ start leaves it alone, so a restart mid-auction loses nothing. To start over on 
 |---|---|---|
 | `SECRET_KEY` | dev value | signs tokens; **must** be set for the event |
 | `ADMIN_PIN` | `admin-1234` | auctioneer access code; **must** be set for the event |
-| `DATABASE_URL` | `sqlite:///sportsaxle.db` | database location |
+| `DATABASE_URL` | `sqlite:///sportsaxle.db` (the Makefile sets the Docker Postgres) | database location |
 | `BID_INCREMENT` | `100` | minimum raise in rupees |
 | `BID_SECONDS` | `30` | countdown per player, restarted by every bid |
 | `SEED_FILE` | unset | JSON loaded on startup **only if the database has no teams** (FR-6.9) |
+
+### Docker
+
+The EC2 deployment (S3 for the raw exports, loading the real data, backups) is in
+[`DEPLOY.md`](../DEPLOY.md).
+
+`Dockerfile` builds the UI with pnpm, then runs one uvicorn worker (the auction lock is
+in-process) that serves the API, photos and the built app. `docker-compose.yml` adds Postgres
+in a container, with its data in the `pgdata` volume.
+
+```
+cp .env.example .env     # set POSTGRES_PASSWORD, SECRET_KEY, ADMIN_PIN
+make up                  # http://localhost:8000
+make down
+```
+
+`backend/photos/` is mounted read-only; `seed.json` is not in the image. To load it, set
+`SEED_FILE=seed.json` and copy it in, or wipe and seed by hand:
+
+```
+docker compose cp backend/seed.json app:/app/backend/seed.json
+docker compose exec app python -m app.seed seed.json      # wipes the database
+```
+
+Postgres listens on `127.0.0.1:5432`. The Makefile reads `.env` and points `make api`, `seed`,
+`wipe` and `feed` at it (`postgresql+psycopg://sportsaxle:<password>@localhost:5432/sportsaxle`),
+starting the container first (`make db`). `make test` and `make e2e` keep their own SQLite
+databases.
 
 ## Caching and sound
 

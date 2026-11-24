@@ -84,6 +84,7 @@ to put players on the block, close bidding and enter results.
 | FR-2.18 | A captain's bid button is disabled, with the reason, when their remaining purse is below the minimum bid or their squad is full. |
 | FR-2.19 | Unsold players are never drawn again automatically: when no unseen player is left the auctioneer is told so, and offers an unsold player again by choosing them. |
 | FR-2.16 | A big-screen view for the projector shows the on-block player, the bid, the leading team and captain, and the countdown in large type, then a "SOLD!" or "UNSOLD" splash with the buying team. It never shows the price of a past sale. |
+| FR-2.20 | The auctioneer can reset the auction after a test run: every player becomes Available with no team or price, nothing is on the block and every purse is full again. Teams, access codes, players, photos, matches and the squad limit stay. The admin page asks them to type RESET first. |
 
 ### 3.3 Captain dashboard
 
@@ -138,6 +139,7 @@ to put players on the block, close bidding and enter results.
 | FR-6.6 | On the admin page the auctioneer adds a team: unique name, captain, colour, purse and an access code of at least 6 characters. The new captain can sign in at once. |
 | FR-6.7 | On the admin page the auctioneer adds a player: name, department, sports, base price and an optional photo (JPG, PNG or WebP, up to 2 MB). The player joins the auction pool as Available. |
 | FR-6.8 | The auctioneer can remove a player who is not sold and not on the block. |
+| FR-6.13 | The auctioneer sets one base price for every player not yet sold in a single step. Sold players and the player on the block keep theirs. |
 
 ### 3.7 Final squads
 

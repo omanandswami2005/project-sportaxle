@@ -11,7 +11,7 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..models import Photo, Player, Team
-from ..schemas import MAX_RUPEES, PlayerOut, TeamIn, TeamOut
+from ..schemas import MAX_RUPEES, BasePriceIn, PlayerOut, TeamIn, TeamOut
 from ..security import hash_pin, require_admin
 from ..services import auction
 
@@ -148,3 +148,9 @@ def edit_player(
 @router.delete("/players/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_player(player_id: int, session: Session = Depends(get_session)) -> None:
     _delete_photo(session, auction.remove_player(session, player_id))
+
+
+@router.put("/players/base-price")
+def set_base_price(body: BasePriceIn, session: Session = Depends(get_session)) -> dict[str, int]:
+    """One base price for every player not yet sold (the player on the block keeps theirs)."""
+    return {"updated": auction.set_base_price(session, body.price)}

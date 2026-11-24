@@ -19,6 +19,7 @@ def _view(session: Session, state: Auction) -> AuctionOut:
         team_id=state.team_id,
         min_bid=auction.min_bid(state, player) if player else None,
         seconds_left=auction.seconds_left(state) if player else None,
+        ms_left=auction.ms_left(state) if player else None,
         paused=state.paused_left is not None,
         squad_limit=auction.squad_limit(session),
         last=last,
@@ -68,3 +69,8 @@ def resume(session: Session = Depends(get_session)):
 @router.post("/undo", response_model=AuctionOut, dependencies=[Depends(require_admin)])
 def undo(session: Session = Depends(get_session)):
     return _view(session, auction.undo_last(session))
+
+
+@router.post("/reset", response_model=AuctionOut, dependencies=[Depends(require_admin)])
+def reset(session: Session = Depends(get_session)):
+    return _view(session, auction.reset(session))

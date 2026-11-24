@@ -8,12 +8,14 @@ import { usePoll } from "../lib/api";
 import { money } from "../lib/format";
 import { preloadImages } from "../lib/preload";
 import { enableSound, soundOn, sounds } from "../lib/sound";
+import { useSecondsLeft } from "../lib/countdown";
 import type { AuctionState, Player, Team } from "../lib/types";
 
 /** Projector view of the live auction: huge type, the countdown and a SOLD splash.
  *  Covers the site header; prices of past sales are never shown (they are private). */
 export default function Screen() {
   const { data: state } = usePoll<AuctionState>("/auction", 1000);
+  const seconds = useSecondsLeft(state);
   const { data: teams } = usePoll<Team[]>("/teams", 30_000);
   const { data: players } = usePoll<Player[]>("/players", 30_000);
   const team = (id: number | null) => teams?.find((t) => t.id === id);
@@ -21,7 +23,7 @@ export default function Screen() {
 
   // Warm every photo the reveal could need, so none of them waits on the network.
   useEffect(() => preloadImages([...(teams ?? []).map((t) => t.captain_photo_url), ...(players ?? []).map((p) => p.photo_url)]), [teams, players]);
-  useAuctionSounds(state, sound);
+  useAuctionSounds(state, seconds, sound);
 
   return (
     <div className="fixed inset-0 z-20 flex flex-col overflow-hidden bg-ink text-white">
@@ -47,7 +49,7 @@ export default function Screen() {
 
       <main className={`relative flex flex-1 items-center ${state && !state.player && !state.last ? "pb-[2vh]" : "px-[4vw]"}`}>
         {!state ? null : state.player ? (
-          <OnBlock state={state} leader={team(state.team_id)} />
+          <OnBlock state={state} seconds={seconds ?? state.seconds_left ?? 0} leader={team(state.team_id)} />
         ) : state.last ? (
           <Result key={state.last.id} state={state} buyer={team(state.last.team_id)} />
         ) : (
@@ -58,9 +60,8 @@ export default function Screen() {
   );
 }
 
-function OnBlock({ state, leader }: { state: AuctionState; leader?: Team }) {
+function OnBlock({ state, seconds, leader }: { state: AuctionState; seconds: number; leader?: Team }) {
   const player = state.player!;
-  const seconds = state.seconds_left ?? 0;
   const urgent = !state.paused && seconds <= 10;
   return (
     <div className="grid w-full grid-cols-[auto_1fr] items-center gap-[4vw]" data-testid="screen-on-block">
@@ -148,14 +149,19 @@ function Result({ state, buyer }: { state: AuctionState; buyer?: Team }) {
 }
 
 /** Plays a cue when the bid changes, in the last five seconds, and when a player is sold. */
-function useAuctionSounds(state: AuctionState | undefined, on: boolean) {
+function useAuctionSounds(state: AuctionState | undefined, seconds: number | null, on: boolean) {
   const prev = useRef<AuctionState | undefined>(undefined);
   useEffect(() => {
     const before = prev.current;
     prev.current = state;
     if (!on || !state || !before || !soundOn()) return;
     if (state.player && state.bid !== before.bid && state.bid !== null) sounds.bid();
-    else if (state.player && !state.paused && state.seconds_left !== before.seconds_left && (state.seconds_left ?? 99) <= 5) sounds.tick();
     if (before.player && !state.player && state.last) state.last.status === "sold" ? sounds.sold() : sounds.unsold();
   }, [state, on]);
+
+  // The last-five-seconds tick follows the local countdown, once per second.
+  const playing = !!state?.player && !state.paused;
+  useEffect(() => {
+    if (on && playing && seconds !== null && seconds > 0 && seconds <= 5 && soundOn()) sounds.tick();
+  }, [seconds, playing, on]);
 }

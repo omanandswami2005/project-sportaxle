@@ -88,6 +88,9 @@ def test_countdown_starts_at_30_and_every_bid_restarts_it(client, admin, alpha, 
     assert client.post("/api/auction/next", headers=admin).json()["seconds_left"] == 30
     clock.t += 20
     assert client.get("/api/auction").json()["seconds_left"] == 10
+    clock.t += 0.75  # the exact time lets browsers count down locally between polls
+    state = client.get("/api/auction").json()
+    assert (state["seconds_left"], state["ms_left"]) == (10, 9250)
     assert bid(client, alpha, 200).json()["seconds_left"] == 30
     clock.t += 29
     assert bid(client, bravo, 300).json()["seconds_left"] == 30

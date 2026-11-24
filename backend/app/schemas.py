@@ -43,6 +43,7 @@ class AuctionOut(Out):
     team_id: int | None
     min_bid: int | None
     seconds_left: int | None
+    ms_left: int | None  # exact, so the browser can run the countdown locally between polls
     paused: bool
     squad_limit: int | None
     last: PlayerOut | None
@@ -81,6 +82,10 @@ class BidIn(BaseModel):
 
 class SquadLimitIn(BaseModel):
     limit: int | None = Field(None, gt=0, le=100)  # None = no limit
+
+
+class BasePriceIn(BaseModel):
+    price: int = Field(gt=0, le=MAX_RUPEES)
 
 
 class NextIn(BaseModel):

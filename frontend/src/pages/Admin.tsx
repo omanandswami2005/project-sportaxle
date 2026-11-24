@@ -165,6 +165,49 @@ function SquadLimit() {
   );
 }
 
+/** One base price for every player not yet sold; the player on the block keeps theirs. */
+function BasePrice({ onSaved }: { onSaved: () => void }) {
+  const send = async (data: FormData) => {
+    const { updated } = await api<{ updated: number }>("/players/base-price", "PUT", {
+      price: Number(data.get("price")),
+    });
+    onSaved();
+    return `Base price set for ${updated} player${updated === 1 ? "" : "s"}.`;
+  };
+  return (
+    <AdminForm title="Base price for all players" submitLabel="Set for all" send={send}>
+      <p className="text-sm text-steel">
+        Applies to every player not yet sold. Sold players and the player on the block keep their price. One
+        player&apos;s price can still be changed under Edit.
+      </p>
+      <Field label="Base price (₹)">
+        <input name="price" type="number" required min={1} className="field" />
+      </Field>
+    </AdminForm>
+  );
+}
+
+/** Clear every bid and sale after a test run. Teams, players, photos and matches stay. */
+function ResetAuction({ onSaved }: { onSaved: () => void }) {
+  const send = async (data: FormData) => {
+    if (data.get("confirm") !== "RESET") throw new Error("Type RESET to confirm.");
+    await api("/auction/reset", "POST");
+    onSaved();
+    return "Auction reset: every player is available again and every purse is full.";
+  };
+  return (
+    <AdminForm title="Reset the auction" submitLabel="Reset auction" send={send}>
+      <p className="text-sm text-steel">
+        For after a test run. Every sale is undone, the player on the block is taken off and every purse is full
+        again. Teams, captains, access codes, players, photos, matches and the squad limit stay. There is no undo.
+      </p>
+      <Field label="Type RESET to confirm">
+        <input name="confirm" required autoComplete="off" className="field" />
+      </Field>
+    </AdminForm>
+  );
+}
+
 export default function Admin() {
   const isAdmin = useAuth().session?.role === "admin";
   const { data: teams, refresh: refreshTeams } = usePoll<Team[]>(isAdmin ? "/teams" : null);
@@ -247,6 +290,8 @@ export default function Admin() {
         </AdminForm>
 
         <SquadLimit />
+        <BasePrice onSaved={refreshPlayers} />
+        <ResetAuction onSaved={refreshPlayers} />
       </div>
 
       <h2 className="mt-10 text-2xl">Teams · {teams?.length ?? 0}</h2>

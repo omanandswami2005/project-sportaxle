@@ -46,12 +46,17 @@ def min_bid(state: Auction, player: Player) -> int:
     return player.base_price if state.bid is None else state.bid + settings.bid_increment
 
 
-def seconds_left(state: Auction) -> int | None:
+def ms_left(state: Auction) -> int | None:
     if state.paused_left is not None:
-        return math.ceil(state.paused_left)
+        return round(state.paused_left * 1000)
     if state.ends_at is None:
         return None
-    return max(0, math.ceil(state.ends_at - _now()))
+    return max(0, round((state.ends_at - _now()) * 1000))
+
+
+def seconds_left(state: Auction) -> int | None:
+    ms = ms_left(state)
+    return None if ms is None else math.ceil(ms / 1000)
 
 
 def spent(session: Session, team_id: int) -> int:
@@ -300,3 +305,35 @@ def update_player(session: Session, player_id: int, changes: dict) -> Player:
         session.commit()
         session.refresh(player)
         return player
+
+
+def set_base_price(session: Session, price: int) -> int:
+    """Give every player who is not sold and not on the block the same base price. Returns how
+    many players changed."""
+    with _lock:
+        state = get_state(session)
+        players = session.exec(
+            select(Player).where(Player.status != PlayerStatus.sold, Player.base_price != price)
+        ).all()
+        changed = [p for p in players if p.id != state.player_id]
+        for player in changed:
+            player.base_price = price
+            session.add(player)
+        session.commit()
+        return len(changed)
+
+
+def reset(session: Session) -> Auction:
+    """Undo the whole auction, e.g. after a test run: every player is Available again with no
+    team or price, and nothing is on the block, so every purse is full again (spending is
+    computed from sales). Teams, players, photos, matches and settings stay."""
+    with _lock:
+        state = get_state(session)
+        for player in session.exec(select(Player)).all():
+            player.status, player.team_id, player.sold_price = PlayerStatus.available, None, None
+            session.add(player)
+        state.player_id, state.bid, state.team_id, state.last_player_id = None, None, None, None
+        state.ends_at, state.paused_left = None, None
+        session.add(state)
+        session.commit()
+        return state

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Avatar, SportChips, StatusBadge } from "../components/PlayerCard";
 import { api, usePoll } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useSecondsLeft } from "../lib/countdown";
 import { money, teamName } from "../lib/format";
 import type { AuctionState, Dashboard, Player, Team } from "../lib/types";
 
@@ -87,6 +88,7 @@ export default function Auction() {
   const { session } = useAuth();
   const isCaptain = session?.role === "captain";
   const { data: state, refresh } = usePoll<AuctionState>("/auction", 1000);
+  const seconds = useSecondsLeft(state);
   const { data: teams } = usePoll<Team[]>("/teams", 60_000);
   // Only the signed-in captain ever receives their own purse.
   const { data: mine, refresh: refreshMine } = usePoll<Dashboard>(isCaptain ? "/me/dashboard" : null);
@@ -149,7 +151,7 @@ export default function Auction() {
                   Leading: <b>{teamName(teams, state.team_id)}</b>
                 </p>
               )}
-              {state.seconds_left !== null && <Countdown seconds={state.seconds_left} paused={state.paused} />}
+              {seconds !== null && <Countdown seconds={seconds} paused={state.paused} />}
             </div>
 
             {isCaptain && min_bid !== null && (

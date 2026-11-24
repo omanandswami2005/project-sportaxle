@@ -146,6 +146,12 @@ test("auction to leaderboard: the whole event in one pass", async ({ page }) => 
   await limit.getByRole("button", { name: "Save limit" }).click();
   await expect(limit.getByRole("status")).toHaveText("Squad limit is now 6 players.");
 
+  // One base price for every player not yet sold.
+  const basePrice = page.getByRole("form", { name: "Base price for all players" });
+  await basePrice.getByLabel("Base price (₹)").fill("400");
+  await basePrice.getByRole("button", { name: "Set for all" }).click();
+  await expect(basePrice.getByRole("status")).toContainText("Base price set for");
+
   // Final squads sheet: every team, its players, no prices.
   await page.goto("/squads");
   await expect(page.getByTestId("squad")).toHaveCount(5);
@@ -162,4 +168,18 @@ test("auction to leaderboard: the whole event in one pass", async ({ page }) => 
 
   await page.goto("/");
   await expect(page.getByTestId("team-card")).toHaveCount(5);
+
+  // After a test run the auctioneer resets the auction; teams and players stay.
+  await page.goto("/admin");
+  const reset = page.getByRole("form", { name: "Reset the auction" });
+  await reset.getByLabel("Type RESET to confirm").fill("reset");
+  await reset.getByRole("button", { name: "Reset auction" }).click();
+  await expect(reset.getByRole("alert")).toHaveText("Type RESET to confirm.");
+  await reset.getByLabel("Type RESET to confirm").fill("RESET");
+  await reset.getByRole("button", { name: "Reset auction" }).click();
+  await expect(reset.getByRole("status")).toContainText("Auction reset");
+  const players = await (await page.request.get("/api/players")).json();
+  expect(players.length).toBeGreaterThan(0);
+  expect(players.every((p: { status: string }) => p.status === "available")).toBe(true);
+  expect((await (await page.request.get("/api/teams")).json()).length).toBe(5);
 });

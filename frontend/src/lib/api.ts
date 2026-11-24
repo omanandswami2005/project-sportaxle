@@ -40,7 +40,10 @@ export async function api<T>(path: string, method = "GET", body?: unknown): Prom
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-/** GET `path` now and every `ms` after; `refresh()` re-fetches immediately. */
+/** GET `path` now and again `ms` after each answer; `refresh()` re-fetches immediately.
+ *  One request at a time, so a slow network never piles requests up, and an answer from before
+ *  a refresh is dropped, so the page never steps back to older state. A tab that becomes visible
+ *  again fetches at once. */
 export function usePoll<T>(path: string | null, ms = 5000) {
   const [data, setData] = useState<T>();
   const [error, setError] = useState<string>();
@@ -50,16 +53,30 @@ export function usePoll<T>(path: string | null, ms = 5000) {
   useEffect(() => {
     if (!path) return;
     let live = true;
-    const load = () =>
-      api<T>(path).then(
-        (value) => live && (setData(value), setError(undefined)),
-        (err: Error) => live && setError(err.message),
-      );
+    let busy = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = () => {
+      if (busy) return;
+      busy = true;
+      clearTimeout(timer);
+      api<T>(path)
+        .then(
+          (value) => live && (setData(value), setError(undefined)),
+          (err: Error) => live && setError(err.message),
+        )
+        .finally(() => {
+          busy = false;
+          if (live) timer = setTimeout(load, ms);
+        });
+    };
+    // A background tab's timers are slowed down; catch up as soon as it is visible again.
+    const wake = () => document.visibilityState === "visible" && load();
     load();
-    const timer = setInterval(load, ms);
+    document.addEventListener("visibilitychange", wake);
     return () => {
       live = false;
-      clearInterval(timer);
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", wake);
     };
   }, [path, ms, tick]);
 

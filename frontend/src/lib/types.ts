@@ -23,6 +23,7 @@ export type AuctionState = {
   team_id: number | null;
   min_bid: number | null;
   seconds_left: number | null;
+  ms_left: number | null;
   paused: boolean;
   squad_limit: number | null; // most players a team may buy; null = no limit
   last: Player | null;
